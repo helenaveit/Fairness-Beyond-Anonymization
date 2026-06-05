@@ -4,7 +4,7 @@ This repository contains the code for the two-stage audit pipeline described in 
 
 ## 1. Pipeline Overview
 
-![Two-Stage Audit Pipeline](readme_figure/architecture.pdf)
+![Two-Stage Audit Pipeline](readme_figure/architecture.png)
 
 **Flow:**
 
