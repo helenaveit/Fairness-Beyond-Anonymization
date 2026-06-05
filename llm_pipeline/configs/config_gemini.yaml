@@ -1,0 +1,29 @@
+provider: google-gemini
+model: gemini-2.5-flash-lite
+
+temperature: 1
+max_output_tokens: 4000
+
+concurrency: 4
+
+run_scope:
+  rows: 30
+  ages: [40]
+  names: "all"
+
+cv_output_preference: json
+
+inputs:
+  data_csv: preprocessing/output/sample_data_clean.csv
+  names_file: llm_pipeline/inputs/names.txt
+  cv_prompt_template: llm_pipeline/prompts/cv_prompt_v1.md
+
+outputs_dir: outputs
+
+alerts:
+  token_total_warn: 20000000
+  token_total_hard_cap: 40000000
+
+retries:
+  max_attempts: 5
+  initial_backoff_seconds: 10

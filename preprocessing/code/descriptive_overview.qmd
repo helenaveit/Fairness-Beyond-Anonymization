@@ -1,0 +1,2230 @@
+---
+title: "CHEMISTREE – Descriptive Data Overview"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    number-sections: true
+    output-dir: ./output/descriptive_overview
+params:
+  prefer: "wide"     # one of: wide, long, clean_split, clean
+  out_dir: "preprocessing/output"  # where CSVs were written by the pipeline
+  raw_path: "data/chemestree_jobmatch.csv"
+execute:
+  echo: true
+  message: false
+  warning: false
+---
+
+```{r}
+#| label: setup
+suppressPackageStartupMessages({
+  library(dplyr); library(readr); library(tidyr); library(stringr)
+  library(forcats); library(ggplot2); library(purrr); library(scales)
+  library(Matrix); library(DT); library(forcats); library(maps); library(stringi)
+})
+
+paths <- list(
+  clean       = file.path("../..", params$out_dir, "data_clean.csv"),
+  clean_split = file.path("../..", params$out_dir, "data_clean_split.csv"),
+  long        = file.path("../..", params$out_dir, "data_long.csv"),
+  wide        = file.path("../..", params$out_dir, "data_wide.csv")
+)
+exist <- vapply(paths, file.exists, logical(1))
+
+prefer <- match.arg(params$prefer, c("wide","long","clean_split","clean"))
+order_try <- c(prefer, setdiff(c("wide","long","clean_split","clean"), prefer))
+chosen <- NULL
+for (nm in order_try) if (exist[[nm]]) { chosen <- nm; break }
+if (is.null(chosen)) stop("No dataset found in `", params$out_dir, "`")
+
+# Load selected + others if present
+df_main  <- read_csv(paths[[chosen]], show_col_types = FALSE)
+df_wide  <- if (exist[["wide"]])  read_csv(paths$wide,  show_col_types = FALSE) else NULL
+df_long  <- if (exist[["long"]])  read_csv(paths$long,  show_col_types = FALSE) else NULL
+df_clean <- if (exist[["clean"]]) read_csv(paths$clean, show_col_types = FALSE) else NULL
+df_clean_split <- if (exist[["clean_split"]]) read_csv(paths$clean_split, show_col_types = FALSE) else NULL
+
+# By design: df_main == df_wide for summaries.
+if (!is.null(df_wide)) df_main <- df_wide
+
+# Helpers ------------------------------------------------------------
+stopifnot("ID" %in% names(df_main))
+cols_all <- setdiff(names(df_main), "ID")
+
+# Name-based family detection (robust to your schema)
+ind_cols <- cols_all[grepl(":\\s", cols_all)]          # "Var: Cat(: Subcat)"
+sc_cols  <- setdiff(cols_all, ind_cols)                # exactly the variable name (DE/EN & other langs here)
+
+is_indicator <- function(x) is.numeric(x) && all(x %in% c(0, 1, NA), na.rm = TRUE)
+shorten_prefix <- function(x) {
+  # Normalize NBSP to regular space
+  x <- gsub("\u00A0", " ", x, fixed = TRUE)
+
+  str_replace(
+    x,
+    regex(
+      paste0(
+        "^(",
+          # 1) Fachliches & funktionales Kompetenz(-|–|—)Profil:
+          "Fachliches\\s*&\\s*funktionales\\s*Kompetenz[-–—]Profil\\s*:\\s*",
+          "|",
+          # 2) Wunschbranche:
+          "Wunschbranche\\s*:\\s*",
+          "|",
+          # 3) Sprachkompetenz <LANG> (with flexible spaces, optional colon)
+          "Sprachkompetenz\\s+:?\\s*",
+        ")"
+      ),
+      ignore_case = FALSE
+    ),
+    ""
+  )
+}
+
+
+wrap <- function(x, width = 40) str_wrap(x, width = width)
+
+var_order <- c(
+  "Wunschbranche","Branchen-/Bereichserfahrung","Favorisierte Unternehmensgröße",
+  "Unternehmensumfeld","Einsatzort (Großraum)","Remote-Tätigkeit","Umfang der Stelle",
+  "Reisetätigkeit","Sprachkompetenz DEUTSCH","Sprachkompetenz ENGLISCH",
+  "WEITERE Sprachkompetenzen","Fachliches & funktionales Kompetenz-Profil",
+  "Spezifische/r Themen- und Fachbereich/e","Tätigkeitsfeld","Beschreibung der Aufgabe",
+  "Persönliche Kompetenzen","Sozial-kommunikative Kompetenzen",
+  "Aktivitäts- und umsetzungsorientierte Kompetenzen",
+  "Denke an Deine bisherigen Teamerfahrungen zurück. Welche Rolle(n) nimmst Du in Teams am liebsten ein?",
+  "Welche Werte sind Dir in dem Team der zu besetzenden Stelle besonders wichtig?",
+  "Mit welchen Aussagen können Unternehmen bei Dir punkten?","Meine Bildungsabschlüsse","Bruttojahresgehalt"
+)
+
+# helper: compact label "category — subcategory" (if sub exists)
+mk_label <- function(category, subcategory) {
+  ifelse(is.na(subcategory) | subcategory == "", category, paste0(category, " — ", subcategory))
+}
+
+plot_top_for_variable <- function(df_long, var, top_n = 15) {
+  stopifnot(all(c("ID","variable","category","subcategory") %in% names(df_long)))
+  
+  df_long %>%
+    filter(variable == var) %>%
+    mutate(label = mk_label(category, subcategory)) %>%
+    count(label, sort = TRUE, name = "n") %>%
+    slice_head(n = top_n) %>%
+    arrange(n) %>%
+    ggplot(aes(x = reorder(label, n), y = n)) +
+    geom_col() +
+    coord_flip() +
+    theme_minimal(base_size = 12) +
+    labs(title = var, x = NULL, y = "Anzahl")
+}
+
+```
+
+## Executive summary
+
+```{r}
+#| label: executive-summary
+# (keeps your logic; adds clear context + formatting)
+
+n_obs <- nrow(df_main)
+
+top_inds <- df_main %>%
+  summarise(across(all_of(ind_cols), ~ sum(. == 1, na.rm = TRUE))) %>%
+  pivot_longer(everything(), names_to = "feature", values_to = "n") %>%
+  arrange(desc(n)) %>%
+  rename(n_ones = n) %>%
+  mutate(
+    feature = shorten_prefix(feature),
+    pct_ones = n_ones / n_obs
+  ) %>%
+  slice_head(n = 10)
+
+sc_missing <- df_main %>%
+  summarise(across(all_of(sc_cols), ~ sum(.x %in% c(NA, "", "keine Angabe")))) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "n_missing") %>%
+  mutate(
+    variable = shorten_prefix(variable),
+    pct_missing = n_missing / n_obs,
+    n_nonmissing = n_obs - n_missing
+  ) %>%
+  select(-n_missing) %>%
+  arrange(desc(pct_missing)) %>%
+  slice_head(n = 10)
+
+# --- context header -----------------------------------------------------------
+cat("### Executive summary\n\n")
+
+# Overview line
+overview_tbl <- tibble::tibble(
+  dataset       = chosen,
+  rows          = n_obs,
+  cols          = length(cols_all),
+  indicators    = length(ind_cols),
+  single_choice = length(sc_cols)
+)
+print(overview_tbl)
+
+cat("\n**Top indicator features (top 10)** — *Number and share of respondents who selected each feature.*\n\n")
+
+# Nicely formatted top indicators
+top_inds_out <- top_inds %>%
+  transmute(
+    Feature      = feature,
+    Selections   = n_ones,
+    Share        = scales::percent(pct_ones, accuracy = 0.1)
+  )
+print(top_inds_out, n = nrow(top_inds_out))
+
+cat("\n**Single-choice variables with most missing/‘keine Angabe’ (top 10)** — *Share of rows with missing/blank/‘keine Angabe’ plus available count.*\n\n")
+
+sc_missing_out <- sc_missing %>%
+  transmute(
+    Variable         = variable,
+    `Missing share`  = scales::percent(pct_missing, accuracy = 0.1),
+    `Available (n)`  = n_nonmissing
+  )
+print(sc_missing_out, n = nrow(sc_missing_out))
+```
+
+## Data dictionary
+
+```{r}
+#| label: data-dictionary
+# Keep your logic; add minimal context, compact preview, and an export.
+
+# family as ordered factor
+family_vec <- ifelse(cols_all %in% ind_cols, "indicator", "single-choice/text")
+family_fac <- factor(family_vec, levels = c("indicator", "single-choice/text"))
+
+n_obs <- nrow(df_main)
+
+n_unique_vec  <- vapply(df_main[cols_all], function(x) n_distinct(x, na.rm = TRUE), integer(1))
+n_nonmiss_vec <- vapply(df_main[cols_all], function(x) sum(!is.na(x)),               integer(1))
+
+# % of ones only for indicators
+pct_ones_vec <- vapply(
+  cols_all,
+  function(col) if (col %in% ind_cols) round(mean(df_main[[col]] == 1, na.rm = TRUE) * 100, 2) else NA_real_,
+  numeric(1)
+)
+
+# optional: missingness only for single-choice/text (kept but not foregrounded)
+sc_missing_vec <- vapply(
+  cols_all,
+  function(col) if (!(col %in% ind_cols)) sum(df_main[[col]] %in% c(NA, "", "keine Angabe")) else NA_integer_,
+  integer(1)
+)
+sc_pct_missing_vec <- round(100 * sc_missing_vec / n_obs, 1)
+
+dict <- tibble::tibble(
+  variable        = cols_all,
+  family          = family_fac,
+  n_unique        = n_unique_vec,
+  n_nonmiss       = n_nonmiss_vec,
+  pct_ones        = pct_ones_vec,         # only meaningful for indicators
+  sc_pct_missing  = sc_pct_missing_vec    # only meaningful for single-choice/text
+) %>%
+  arrange(family, desc(n_unique))
+
+# ---- concise context & preview (no repetition of exec summary) ---------------
+cat("### Data dictionary\n\n")
+cat(paste0(
+  "Columns: ", length(cols_all),
+  " | Indicators: ", length(ind_cols),
+  " | Single-choice/Text: ", length(sc_cols), "\n\n",
+  "Preview shows variable name, family, unique values, non-missing count, and (for indicators) % of 1s.\n\n"
+))
+
+dict_preview <- dict %>%
+  mutate(
+    variable = shorten_prefix(variable),
+    pct_ones = ifelse(is.na(pct_ones), NA, paste0(pct_ones, "%"))
+  ) %>%
+  select(variable, family, n_unique, n_nonmiss, pct_ones) %>%
+  slice_head(n = 30)
+
+print(dict_preview, n = nrow(dict_preview))
+
+```
+
+## Indicators plot
+
+```{r}
+#| label: plot-indicators-top
+#| fig.height: 20
+#| fig.width: 8
+# Uses pct_ones from 'dict' (built in data-dictionary)
+
+stopifnot(exists("dict"))
+
+ind_tab <- dict %>%
+  filter(family == "indicator") %>%
+  transmute(
+    variable_lbl = shorten_prefix(variable),
+    pct1 = as.numeric(pct_ones)   # already 0–100 in dict
+  ) %>%
+  filter(!is.na(pct1)) %>%
+  arrange(desc(pct1))
+
+if (nrow(ind_tab)) {
+  top_n <- min(30, nrow(ind_tab))
+  pdat  <- ind_tab %>%
+    slice_head(n = top_n) %>%
+    mutate(variable_lbl = str_wrap(variable_lbl, 35) %>% 
+                 str_trunc(130)) %>%
+    arrange(pct1)
+
+  ggplot(pdat, aes(x = fct_reorder(variable_lbl, pct1), y = pct1)) +
+    geom_segment(aes(xend = variable_lbl, y = 0, yend = pct1)) +
+    geom_point(size = 2) +
+    geom_text(aes(label = paste0(round(pct1, 1), "%")), hjust = -0.2, size = 3) +
+    scale_y_continuous(
+      name = "Anteil 1er (%)",
+      breaks = seq(0, 100, 10),
+      limits = c(0, 100),
+      expand = expansion(mult = c(0, 0.08)),
+      sec.axis = dup_axis(name = "Anteil 1er (%)")
+    ) +
+    geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+    coord_flip(clip = "off") +
+    theme_minimal(base_size = 12) +
+    theme(
+      plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+      axis.text.y = element_text(lineheight = 0.9, size = 9),
+      axis.title.x.top    = element_text(margin = margin(b = 8)),
+      axis.ticks.x.top    = element_line(),
+      axis.title.x.bottom = element_text(margin = margin(t = 8))
+    ) +
+    labs(
+      title    = "Top Indicator-Features nach Anteil",
+      subtitle = paste0("Basis: N = ", format(n_obs, big.mark = ".")),
+      x = NULL, y = "Anteil 1er (%)"
+    )
+} else {
+  cat("No indicator columns available to plot.\n")
+}
+```
+
+## Single-choice distributions (w/o Languages)
+
+```{r}
+#| label: single-choice-dists
+#| fig.height: 3
+#| fig.width: 8
+if (length(sc_cols)) {
+  show_cols <- c("Reisetätigkeit","Remote-Tätigkeit")
+
+  for (cc in show_cols) {
+    if (!cc %in% names(df_main)) next
+
+    tab <- df_main %>%
+      filter(!(.data[[cc]] %in% c(NA, "", "keine Angabe"))) %>%
+      count(opt = .data[[cc]], name = "n") %>%
+      mutate(
+        pct = n / sum(n) * 100,
+        lbl = as.character(opt) %>% str_wrap(35) %>% str_trunc(80, ellipsis = "...")
+      ) %>%
+      arrange(pct)
+
+    if (nrow(tab) == 0) next
+
+    p <- ggplot(tab, aes(x = fct_reorder(lbl, pct), y = pct)) +
+      geom_segment(aes(xend = lbl, y = 0, yend = pct)) +
+      geom_point(size = 2) +
+      geom_text(aes(label = paste0(round(pct, 1), "%")), hjust = -0.2, size = 3) +
+      scale_y_continuous(
+        name = "Anteil (%)",
+        breaks = seq(0, 100, 10),
+        limits = c(0, 100),
+        expand = expansion(mult = c(0, 0.08))
+      ) +
+      geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+      coord_flip(clip = "off") +
+      theme_minimal(base_size = 12) +
+      theme(
+        plot.margin = grid::unit(c(5.5, 20, 5.5, 5.5), "pt"),
+        axis.text.y = element_text(lineheight = 0.9, size = 9)
+      ) +
+      labs(
+        title    = cc,
+        x = NULL, y = "Anteil (%)"
+      )
+
+    print(p)   
+  }
+}
+```
+
+## Languages
+
+```{r}
+#| label: single-choice-missing
+if (length(sc_cols)) {
+ sc_missing
+}
+```
+
+```{r}
+#| label: sprachkompetenz
+# Einzelländer (DE/EN) – Lollipop, Prozent, kurze Labels, keine Top-Achse
+short_level <- function(x) case_when(
+  str_detect(x, "Elementare Sprachanwendung")    ~ "Elementare Sprachanwendung (A1 / A2)",
+  str_detect(x, "Selbstständige Sprachanwendung")~ "Selbstständige Sprachanwendung (B1 / B2)",
+  str_detect(x, "Kompetente Sprachverwendung")   ~ "Kompetente Sprachverwendung (C1 / C2)",
+  TRUE ~ as.character(x)
+)
+
+for (cc in c("Sprachkompetenz DEUTSCH", "Sprachkompetenz ENGLISCH")) {
+  if (cc %in% names(df_main)) {
+    tab <- df_main %>%
+      filter(!(.data[[cc]] %in% c(NA, "", "keine Angabe"))) %>%
+      count(opt = .data[[cc]], name = "n") %>%
+      mutate(
+        level_short = short_level(opt),
+        pct = n / sum(n) * 100
+      ) %>%
+      arrange(pct)
+
+    if (nrow(tab)) {
+      p <- ggplot(tab, aes(x = forcats::fct_reorder(level_short, pct), y = pct)) +
+        geom_segment(aes(xend = level_short, y = 0, yend = pct)) +
+        geom_point(size = 2) +
+        geom_text(aes(label = paste0(round(pct, 1), "%")), hjust = -0.2, size = 3) +
+        scale_y_continuous(
+          name = "Anteil (%)",
+          breaks = seq(0, 100, 10),
+          limits = c(0, 100),
+          expand = expansion(mult = c(0, 0.08))
+        ) +
+        geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+        coord_flip(clip = "off") +
+        theme_minimal(base_size = 12) +
+        theme(
+          plot.margin = grid::unit(c(5.5, 20, 5.5, 5.5), "pt"),
+          axis.text.y = element_text(lineheight = 0.9, size = 9)
+        ) +
+        labs(
+          title    = cc,
+          subtitle = "Hinweis: 'keine Angabe' und fehlende/leer Werte sind ausgeschlossen",
+          x = NULL, y = "Anteil (%)"
+        )
+      print(p)
+    }
+  }
+}
+
+# Weitere Sprachen – gestapelt (bleibt)
+other_lang_cols <- names(df_main)[
+  startsWith(names(df_main), "Sprachkompetenz ") &
+  !(names(df_main) %in% c("Sprachkompetenz DEUTSCH","Sprachkompetenz ENGLISCH"))
+]
+if (length(other_lang_cols)) {
+  long_lang <- df_main %>%
+    select(all_of(other_lang_cols)) %>%
+    pivot_longer(everything(), names_to = "language", values_to = "level") %>%
+    filter(!level %in% c(NA, "", "keine Angabe")) %>%
+    mutate(
+      language  = sub("^Sprachkompetenz\\s+", "", language),
+      level_lbl = short_level(level)
+    )
+  long_lang$level_lbl <- factor(
+    long_lang$level_lbl,
+    levels = c("Elementare Sprachanwendung (A1 / A2)",
+               "Selbstständige Sprachanwendung (B1 / B2)",
+               "Kompetente Sprachverwendung (C1 / C2)"),
+    ordered = TRUE
+  )
+  
+   # Anteil "keine Angabe" pro weiterer Sprache – Lollipop
+  miss_lang <- df_main %>%
+    select(all_of(other_lang_cols)) %>%
+    pivot_longer(everything(), names_to = "language", values_to = "level") %>%
+    mutate(
+      language   = sub("^Sprachkompetenz\\s+", "", language),
+      is_missing = is.na(level) | level == "" | level == "keine Angabe"
+    ) %>%
+    group_by(language) %>%
+    summarise(
+      n_missing   = sum(is_missing),
+      n_total     = n(),
+      pct_missing = n_missing / n_total * 100,
+      .groups = "drop"
+    ) %>%
+    arrange(pct_missing)
+
+  if (nrow(miss_lang)) {
+    p_miss <- ggplot(miss_lang, aes(x = forcats::fct_reorder(language, pct_missing), y = pct_missing)) +
+      geom_segment(aes(xend = language, y = 0, yend = pct_missing)) +
+      geom_point(size = 2) +
+      geom_text(aes(label = paste0(round(pct_missing, 1), "%")), hjust = -0.2, size = 3) +
+      scale_y_continuous(
+        name = "Anteil fehlend / 'keine Angabe' (%)",
+        breaks = seq(0, 100, 10),
+        limits = c(0, 100),
+        expand = expansion(mult = c(0, 0.08))
+      ) +
+      geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+      coord_flip(clip = "off") +
+      theme_minimal(base_size = 12) +
+      theme(
+        plot.margin = grid::unit(c(5.5, 20, 5.5, 5.5), "pt"),
+        axis.text.y = element_text(lineheight = 0.9, size = 9)
+      ) +
+      labs(
+        title    = "Weitere Sprachkompetenzen – Anteil 'keine Angabe' / keine Kenntnisse",
+        x = NULL, y = "Anteil (%)"
+      )
+    print(p_miss)
+  }
+
+  print(
+    ggplot(long_lang, aes(x = language, fill = level_lbl)) +
+      geom_bar(position = "fill") +
+      coord_flip() +
+      scale_y_continuous(labels = scales::percent_format()) +
+      theme_minimal(base_size = 12) +
+      labs(
+        title    = "Weitere Sprachkompetenzen (relative Verteilung)",
+        subtitle = "Hinweis: 'keine Angabe' ist hier ausgeschlossen",
+        x = NULL, y = "Anteil", fill = "Niveau"
+      )
+  )
+}
+```
+
+## Fachliches & funktionales Kompetenz-Profil
+
+```{r}
+#| label: ffkp
+#| fig.height: 12
+#| fig.width: 8
+ffkp_cols <- names(df_main)[startsWith(names(df_main), "Fachliches & funktionales Kompetenz-Profil")]
+if (length(ffkp_cols)) {
+  if (all(vapply(df_main[ffkp_cols], is_indicator, logical(1)))) {
+    ffkp_counts <- df_main %>%
+      summarise(across(all_of(ffkp_cols), ~ sum(. == 1, na.rm = TRUE))) %>%
+      pivot_longer(everything(), names_to = "feature", values_to = "n") %>%
+      mutate(
+        feature_lbl = shorten_prefix(feature) %>% str_wrap(35) %>% str_trunc(80),
+        pct = n / n_obs * 100
+      ) %>%
+      arrange(desc(pct))
+
+    top_n <- min(20, nrow(ffkp_counts))
+    pdat  <- ffkp_counts %>% slice_head(n = top_n) %>% arrange(pct)
+
+    ggplot(pdat, aes(x = fct_reorder(feature_lbl, pct), y = pct)) +
+      geom_segment(aes(xend = feature_lbl, y = 0, yend = pct)) +
+      geom_point(size = 2) +
+      geom_text(aes(label = paste0(round(pct, 1), "%")), hjust = -0.2, size = 3) +
+      # Achsenformat wie beim Wunschbranchen-Plot + 50%-Linie
+      scale_y_continuous(
+        name = "Anteil (%)",
+        breaks = seq(0, 100, 10),
+        limits = c(0, 100),
+        expand = expansion(mult = c(0, 0.08)),
+        sec.axis = dup_axis(name = "Anteil (%)")
+      ) +
+      geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+      coord_flip(clip = "off") +
+      theme_minimal(base_size = 12) +
+      theme(
+        plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+        axis.text.y = element_text(lineheight = 0.9, size = 9),
+        axis.title.x.top    = element_text(margin = margin(b = 8)),
+        axis.ticks.x.top    = element_line(),
+        axis.title.x.bottom = element_text(margin = margin(t = 8))
+      ) +
+      labs(
+        title    = "F&f Kompetenz-Profil – Anteil Top-Auswahlen",
+        subtitle = paste0("Basis: N = ", format(n_obs, big.mark = ".")),
+        x = NULL, y = "Anteil (%)"
+      )
+  } else {
+    long_ffkp <- df_main %>% select(all_of(ffkp_cols)) %>%
+      pivot_longer(everything(), names_to = "feature", values_to = "value") %>%
+      filter(!value %in% c(NA, "", "keine Angabe")) %>%
+      mutate(feature_lbl = shorten_prefix(feature) %>% str_wrap(35) %>% str_trunc(80))
+    ggplot(long_ffkp, aes(x = feature_lbl)) +
+      geom_bar() +
+      coord_flip() +
+      theme_minimal(base_size = 12) +
+      theme(axis.text.y = element_text(lineheight = 0.9, size = 9)) +
+      labs(title = "F&f Kompetenz-Profil – Einträge", x = NULL, y = "Anzahl")
+  }
+} else {
+  cat("No F&f Kompetenz-Profil columns found.\n")
+}
+
+```
+
+```{r}
+#| label: ffkp_kategorien_only
+#| fig.height: 14
+#| fig.width: 8
+#| warning: false
+#| message: false
+
+# Long table selector
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category","subcategory") %in% names(long_src)))
+
+var    <- "Fachliches & funktionales Kompetenz-Profil"
+n_obs  <- dplyr::n_distinct(long_src$ID)
+
+ffkp <- long_src %>%
+  dplyr::filter(variable == var) %>%
+  dplyr::mutate(
+    cat = stringr::str_squish(category)
+  ) %>%
+  dplyr::filter(!is.na(cat) & cat != "") %>%
+  dplyr::distinct(ID, cat) %>%                     # one hit per Person × Kategorie
+  dplyr::count(cat, name = "n_cat", sort = TRUE) %>%
+  dplyr::mutate(
+    pct     = 100 * n_cat / n_obs,
+    cat_lbl = stringr::str_wrap(cat, 40)
+  ) %>%
+  dplyr::arrange(pct)
+
+ggplot(ffkp, aes(x = forcats::fct_reorder(cat_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = cat_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08)),
+    sec.axis = dup_axis(name = "Anteil (%)")
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line(),
+    axis.title.x.bottom = element_text(margin = margin(t = 8))
+  ) +
+  labs(
+    title    = "F&f Kompetenz-Profil – Kategorien (Anteil an allen Befragten)",
+    subtitle = paste0("Basis: N = ", format(n_obs, big.mark = ".")),
+    x = NULL, y = "Anteil (%)"
+  )
+
+```
+
+```{r}
+#| label: ffkp_subcats_overall
+#| warning: false
+#| message: false
+
+# Long table selector
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category","subcategory") %in% names(long_src)))
+
+var    <- "Fachliches & funktionales Kompetenz-Profil"
+n_obs  <- dplyr::n_distinct(long_src$ID)
+
+# Subkategorien gesamt: Anteil an allen Befragten (lollipop)
+ffkp_sub <- long_src %>%
+  dplyr::filter(variable == var) %>%
+  dplyr::mutate(sub = dplyr::if_else(is.na(subcategory) | subcategory == "",
+                                     NA_character_, stringr::str_squish(subcategory))) %>%
+  dplyr::filter(!is.na(sub) & sub != "") %>%
+  dplyr::distinct(ID, sub) %>%                # Person zählt höchstens 1× pro Subkategorie
+  dplyr::count(sub, name = "n_sub", sort = TRUE) %>%
+  dplyr::mutate(
+    pct     = 100 * n_sub / n_obs,
+    sub_lbl = stringr::str_wrap(sub, 40)
+  ) %>%
+  dplyr::arrange(pct)
+
+ggplot(ffkp_sub, aes(x = forcats::fct_reorder(sub_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = sub_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08))
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line()
+  ) +
+  labs(
+    title    = "F&f Kompetenz-Profil – Subkategorien (Anteil an allen Befragten)",
+    subtitle = paste0("Basis: N = ", format(n_obs, big.mark = ".")),
+    x = NULL, y = "Anteil (%)"
+  )
+```
+
+```{r}
+#| label: ffkp_topk_stacked_subcats_fix
+#| fig.height: 8
+#| fig.width: 10
+#| warning: false
+#| message: false
+
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category","subcategory") %in% names(long_src)))
+
+var    <- "Fachliches & funktionales Kompetenz-Profil"
+n_obs  <- dplyr::n_distinct(long_src$ID)
+top_k  <- 10
+
+# Top categories by share (based on ALL who picked the category)
+ffkp_cats <- long_src %>%
+  dplyr::filter(variable == var) %>%
+  dplyr::mutate(cat = stringr::str_squish(category)) %>%
+  dplyr::filter(!is.na(cat) & cat != "") %>%
+  dplyr::distinct(ID, cat) %>%
+  dplyr::count(cat, name = "n_cat", sort = TRUE) %>%
+  dplyr::mutate(pct = 100 * n_cat / n_obs)
+
+top_cats <- ffkp_cats %>%
+  dplyr::slice_head(n = min(top_k, nrow(ffkp_cats))) %>%
+  dplyr::pull(cat)
+
+# Build subcategory mix INCLUDING an "(ohne Angabe)" bucket
+ffkp_sub_share <- long_src %>%
+  dplyr::filter(variable == var) %>%
+  dplyr::mutate(
+    cat = stringr::str_squish(category),
+    sub = stringr::str_squish(subcategory),
+    sub2 = dplyr::if_else(is.na(sub) | sub == "", "(ohne Angabe)", sub)
+  ) %>%
+  dplyr::filter(!is.na(cat) & cat %in% top_cats) %>%
+  dplyr::distinct(ID, cat, sub2) %>%                    # one vote per Person × Cat × Sub
+  dplyr::count(cat, sub2, name = "n_cat_sub") %>%
+  dplyr::group_by(cat) %>%
+  dplyr::mutate(
+    base_n    = sum(n_cat_sub),                         # ALL selections for this category (incl. ohne Angabe)
+    pct_in_cat = 100 * n_cat_sub / base_n
+  ) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(
+    cat_lbl = stringr::str_wrap(cat, 25),
+    sub_lbl = stringr::str_wrap(sub2, 30)
+  )
+
+# keep category order like the top list (descending by overall share)
+cat_order <- ffkp_cats %>%
+  dplyr::filter(cat %in% top_cats) %>%
+  dplyr::arrange(dplyr::desc(pct)) %>%
+  dplyr::pull(cat)
+
+ffkp_sub_share <- ffkp_sub_share %>%
+  dplyr::mutate(cat_lbl = factor(cat_lbl, levels = stringr::str_wrap(cat_order, 25)))
+
+
+ggplot(ffkp_sub_share, aes(x = cat_lbl, y = n_cat_sub, fill = sub_lbl)) +
+  geom_col(width = 0.85, position = "fill") +        # <- normalize per category
+  scale_y_continuous(
+    name   = "Anteil je Kategorie (%)",
+    labels = scales::percent_format(accuracy = 1),
+    breaks = seq(0, 1, 0.1),
+    expand = expansion(mult = 0, add = 0)
+  ) +
+  coord_flip(clip = "off") +
+  guides(fill = guide_legend(title = "Subkategorie", ncol = 1)) +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.y = element_text(lineheight = 0.9, size = 9)) +
+  labs(
+    title    = "F&f Kompetenz-Profil – Subkategorien in den Top-K Kategorien",
+    subtitle = "Bars sind je Kategorie normiert (sum = 100%)",
+    x = NULL, y = "Anteil je Kategorie (%)"
+  )
+
+
+
+```
+
+## Wunschbranchen
+
+```{r}
+#| label: wunschbranche
+#| fig.height: 12
+#| fig.width: 8
+wb_cols <- grep("^Wunschbranche", names(df_main), value = TRUE)
+
+if (length(wb_cols) && all(vapply(df_main[wb_cols], is_indicator, logical(1)))) {
+  wb_counts <- df_main %>%
+    summarise(across(all_of(wb_cols), ~ sum(. == 1, na.rm = TRUE))) %>%
+    pivot_longer(everything(), names_to = "Wunschbranche", values_to = "n") %>%
+    mutate(
+      pct    = n / n_obs,
+      WB_lbl = sub("^Wunschbranche:\\s*", "", Wunschbranche, perl = TRUE) |>
+                 str_wrap(35) |>
+                 str_trunc(80)
+    ) %>%
+    arrange(desc(pct))
+
+  top_n <- min(25, nrow(wb_counts))
+  pdat  <- wb_counts %>% slice_head(n = top_n) %>% arrange(pct)
+
+  ggplot(pdat, aes(x = fct_reorder(WB_lbl, pct), y = pct)) +
+    geom_segment(aes(xend = WB_lbl, y = 0, yend = pct)) +
+    geom_point(size = 2) +
+    geom_text(aes(label = scales::percent(pct, accuracy = 0.1)),
+              hjust = -0.2, size = 3) +
+    geom_hline(yintercept = 0.5, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+    coord_flip(clip = "off") +
+    scale_y_continuous(
+      labels  = scales::percent_format(),
+      limits  = c(0, 1),
+      expand  = expansion(mult = c(0, 0.08)),
+      sec.axis = dup_axis(name = "Anteil (%)")
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+      axis.text.y = element_text(lineheight = 0.9, size = 9),
+      axis.title.x.top    = element_text(margin = margin(b = 8)),
+      axis.ticks.x.top    = element_line(),
+      axis.title.x.bottom = element_text(margin = margin(t = 8))
+    ) +
+    labs(
+      title    = "Wunschbranchen – Anteil",
+      subtitle = paste0("Basis: N = ", format(n_obs, big.mark = ".")),
+      x = NULL, y = "Anteil (%)"
+    )
+} else {
+  cat("No `Wunschbranche` indicator columns found or they are not 0/1.\n")
+}
+```
+
+## Brachen-/Bereichserfahrung
+
+```{r}
+#| label: branchen_bereichserfahrung
+#| fig.height: 10
+#| fig.width: 8
+
+# Prefer the explicit long table if loaded; otherwise fall back to df_main if it is long-shaped
+long_src <- if (!is.null(df_long)) {
+  df_long
+} else if (all(c("ID","variable","category","subcategory") %in% names(df_main))) {
+  df_main
+} else {
+  NULL
+}
+
+if (is.null(long_src)) {
+  cat("No long-format table available (need columns: ID, variable, category, subcategory).")
+} else {
+  target_var <- "Branchen-/Bereichserfahrung"
+  
+  # # of respondents with any entry for this variable (percentage denominator)
+  n_obs <- long_src %>%
+    filter(variable == target_var) %>%
+    summarise(n_id = n_distinct(ID)) %>%
+    pull(n_id)
+  
+  # Count per CATEGORY only (ignore subcategory)
+  branchen_counts <- long_src %>%
+    filter(variable == target_var,
+                  !is.na(category), category != "") %>%
+    count(category, name = "n", sort = TRUE) %>%
+    mutate(
+      pct = n / n_obs * 100,
+      category_lbl = stringr::str_wrap(category, 35) %>% stringr::str_trunc(80)
+    )
+  
+  top_n <- min(20, nrow(branchen_counts))
+  pdat  <- branchen_counts %>% slice_head(n = top_n) %>% arrange(pct)
+  
+  ggplot2::ggplot(pdat, ggplot2::aes(x = forcats::fct_reorder(category_lbl, pct), y = pct)) +
+    ggplot2::geom_segment(ggplot2::aes(xend = category_lbl, y = 0, yend = pct)) +
+    ggplot2::geom_point(size = 2) +
+    ggplot2::geom_text(ggplot2::aes(label = paste0(round(pct, 1), "%")),
+                       hjust = -0.2, size = 3) +
+    ggplot2::scale_y_continuous(
+      name    = "Anteil (%)",
+      breaks  = seq(0, 100, 10),
+      limits  = c(0, 100),
+      expand  = ggplot2::expansion(mult = c(0, 0.08)),
+      sec.axis = ggplot2::dup_axis(name = "Anteil (%)")
+    ) +
+    ggplot2::geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+    ggplot2::coord_flip(clip = "off") +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      plot.margin          = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+      axis.text.y          = ggplot2::element_text(lineheight = 0.9, size = 9),
+      axis.title.x.top     = ggplot2::element_text(margin = ggplot2::margin(b = 8)),
+      axis.ticks.x.top     = ggplot2::element_line(),
+      axis.title.x.bottom  = ggplot2::element_text(margin = ggplot2::margin(t = 8))
+    ) +
+    ggplot2::labs(
+      title    = "Branchen- / Bereichserfahrung – Anteil Top-Auswahlen",
+      subtitle = paste0("Basis: N = ", format(n_obs, big.mark = ".")),
+      x = NULL, y = "Anteil (%)"
+    )
+}
+
+```
+
+## **Favorisierte Unternehmensgröße**
+
+```{r}
+#| label: favorisierte_unternehmensgroesse
+
+# Prefer explicit long table if available
+long_src <- if (!is.null(df_long)) {
+  df_long
+} else if (all(c("ID","variable","category","subcategory") %in% names(df_main))) {
+  df_main
+} else {
+  NULL
+}
+
+if (is.null(long_src)) {
+  cat("No long-format table available (need columns: ID, variable, category, subcategory).")
+} else {
+  target_var <- "Favorisierte Unternehmensgröße"
+  
+  # Respondents with any entry for this variable (denominator for %)
+  n_obs <- long_src %>%
+    filter(variable == target_var) %>%
+    summarise(n_id = n_distinct(ID)) %>%
+    pull(n_id)
+  
+  # -------------------------
+  # (A) Category-only shares
+  # -------------------------
+  cat_counts <- long_src %>%
+    filter(variable == target_var,
+                  !is.na(category), category != "") %>%
+    count(category, name = "n", sort = TRUE) %>%
+    mutate(
+      pct = n / n_obs * 100,
+      category_lbl = stringr::str_wrap(category, 35) |> stringr::str_trunc(80)
+    )
+  
+  top_n_cat <- min(15, nrow(cat_counts))
+  pdat_cat  <- cat_counts %>% slice_head(n = top_n_cat) %>% arrange(pct)
+  
+  p_cat <- ggplot2::ggplot(pdat_cat,
+                           ggplot2::aes(x = forcats::fct_reorder(category_lbl, pct), y = pct)) +
+    ggplot2::geom_segment(ggplot2::aes(xend = category_lbl, y = 0, yend = pct)) +
+    ggplot2::geom_point(size = 2) +
+    ggplot2::geom_text(ggplot2::aes(label = paste0(round(pct, 1), "%")),
+                       hjust = -0.2, size = 3) +
+    ggplot2::scale_y_continuous(
+      name    = "Anteil (%)",
+      breaks  = seq(0, 100, 10),
+      limits  = c(0, 100),
+      expand  = ggplot2::expansion(mult = c(0, 0.08)),
+      sec.axis = ggplot2::dup_axis(name = "Anteil (%)")
+    ) +
+    ggplot2::geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+    ggplot2::coord_flip(clip = "off") +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      plot.margin          = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+      axis.text.y          = ggplot2::element_text(lineheight = 0.9, size = 9),
+      axis.title.x.top     = ggplot2::element_text(margin = ggplot2::margin(b = 8)),
+      axis.ticks.x.top     = ggplot2::element_line(),
+      axis.title.x.bottom  = ggplot2::element_text(margin = ggplot2::margin(t = 8))
+    ) +
+    ggplot2::labs(
+      title    = "Favorisierte Unternehmensgröße – Anteil (nur Kategorien)",
+      subtitle = paste0("Basis: N = ", format(n_obs, big.mark = ".")),
+      x = NULL, y = "Anteil (%)"
+    )
+  
+  print(p_cat)
+  
+  # ----------------------------------------------
+  # (B) Drill-down: show subcategories per category
+  #     (keeps top categories; stacks by subcategory)
+  # ----------------------------------------------
+  # Keep top K categories overall (by count) for readability
+  keep_cats <- cat_counts %>%
+    slice_head(n = 8) %>%
+    pull(category)
+  
+  sub_counts <- long_src %>%
+    filter(variable == target_var,
+                  !is.na(category), category != "",
+                  category %in% keep_cats) %>%
+    mutate(sub = if_else(is.na(subcategory) | subcategory == "",
+                                       "(ohne Schwelle)", subcategory)) %>%
+    count(category, sub, name = "n", sort = TRUE)
+  
+  if (nrow(sub_counts) > 0) {
+    p_sub <- ggplot2::ggplot(sub_counts,
+                             ggplot2::aes(x = forcats::fct_reorder(category, n, sum),
+                                          y = n, fill = sub)) +
+      ggplot2::geom_col() +
+      ggplot2::coord_flip() +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::labs(
+        title = "Favorisierte Unternehmensgröße – Verteilung Subkategorien (Top-Kategorien)",
+        x = NULL, y = "Anzahl", fill = "Subkategorie"
+      )
+    print(p_sub)
+  } else {
+    cat("\n(No subcategories present for the kept categories — skipped drill-down plot.)\n")
+  }
+}
+```
+
+## Unternehmensumfeld
+
+```{r}
+#| label: unternehmensumfeld
+
+# Prefer explicit long table if available
+long_src <- if (!is.null(df_long)) {
+  df_long
+} else if (all(c("ID","variable","category","subcategory") %in% names(df_main))) {
+  df_main
+} else {
+  NULL
+}
+
+if (is.null(long_src)) {
+  cat("No long-format table available (need columns: ID, variable, category, subcategory).")
+} else {
+  target_var <- "Unternehmensumfeld"
+  
+  # Respondents with any entry for this variable (denominator for %)
+  n_obs <- long_src %>%
+    filter(variable == target_var) %>%
+    summarise(n_id = n_distinct(ID)) %>%
+    pull(n_id)
+  
+  # Count per CATEGORY only
+  env_counts <- long_src %>%
+    filter(variable == target_var,
+                  !is.na(category), category != "") %>%
+    count(category, name = "n", sort = TRUE) %>%
+    mutate(
+      pct = n / n_obs * 100,
+      category_lbl = stringr::str_wrap(category, 35) |> stringr::str_trunc(80)
+    )
+  
+  top_n <- min(20, nrow(env_counts))
+  pdat  <- env_counts %>% slice_head(n = top_n) %>% arrange(pct)
+  
+  ggplot2::ggplot(pdat,
+                  ggplot2::aes(x = forcats::fct_reorder(category_lbl, pct), y = pct)) +
+    ggplot2::geom_segment(ggplot2::aes(xend = category_lbl, y = 0, yend = pct)) +
+    ggplot2::geom_point(size = 2) +
+    ggplot2::geom_text(ggplot2::aes(label = paste0(round(pct, 1), "%")),
+                       hjust = -0.2, size = 3) +
+    ggplot2::scale_y_continuous(
+      name    = "Anteil (%)",
+      breaks  = seq(0, 100, 10),
+      limits  = c(0, 100),
+      expand  = ggplot2::expansion(mult = c(0, 0.08)),
+      sec.axis = ggplot2::dup_axis(name = "Anteil (%)")
+    ) +
+    ggplot2::geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+    ggplot2::coord_flip(clip = "off") +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      plot.margin          = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+      axis.text.y          = ggplot2::element_text(lineheight = 0.9, size = 9),
+      axis.title.x.top     = ggplot2::element_text(margin = ggplot2::margin(b = 8)),
+      axis.ticks.x.top     = ggplot2::element_line(),
+      axis.title.x.bottom  = ggplot2::element_text(margin = ggplot2::margin(t = 8))
+    ) +
+    ggplot2::labs(
+      title    = "Unternehmensumfeld – Anteil (Kategorien)",
+      subtitle = paste0("Basis: N = ", format(n_obs, big.mark = ".")),
+      x = NULL, y = "Anteil (%)"
+    )
+}
+
+```
+
+## Einsatzort (Großraum)
+
+```{r}
+#| label: einsatzort_grossraum_pct
+#| fig.height: 10
+#| fig.width: 14
+
+suppressPackageStartupMessages({
+  library(dplyr); library(tidyr); library(stringr)
+  library(forcats); library(ggplot2)
+})
+
+# Choose long source
+long_src <- if (exists("df_long") && !is.null(df_long)) {
+  df_long
+} else if (exists("df_main") && all(c("ID","variable","category","subcategory") %in% names(df_main))) {
+  df_main
+} else {
+  NULL
+}
+
+if (is.null(long_src)) {
+
+  cat("No long-format table available (need columns: ID, variable, category, subcategory).")
+
+} else {
+
+  # Percent base = ALL respondents in the dataset
+  n_obs <- n_distinct(long_src$ID)
+
+  var <- "Einsatzort (Großraum)"
+  non_de_groups <- c("Europa außer Deutschland", "USA", "Übrige Welt")
+  citystates <- c("Berlin","Hamburg","Bremen")
+
+  dat <- long_src %>%
+    filter(variable == var) %>%
+    mutate(
+      cat = stringr::str_squish(category),
+      sub = if_else(is.na(subcategory) | subcategory == "", NA_character_, stringr::str_squish(subcategory))
+    )
+
+  # -----------------------------
+  # A) Deutschland: Bundesland × Stadt (facettiert, lollipop, % of n_obs)
+  # -----------------------------
+  de_dat <- dat %>%
+    filter(!is.na(cat), !(cat %in% non_de_groups)) %>%
+    mutate(
+      bundesland = cat,
+      city = case_when(
+        bundesland %in% citystates ~ bundesland,           # city-state → city = state
+        is.na(sub) ~ "(ohne Stadtangabe)",
+        TRUE ~ sub
+      )
+    )
+
+  state_totals <- de_dat %>% count(bundesland, name = "n_state", sort = TRUE)
+  keep_states  <- state_totals %>% slice_head(n = min(12L, nrow(state_totals))) %>% pull(bundesland)
+
+  de_top <- de_dat %>%
+    filter(bundesland %in% keep_states) %>%
+    count(bundesland, city, name = "n", sort = TRUE) %>%
+    mutate(pct = n / n_obs * 100) %>%
+    group_by(bundesland) %>%
+    slice_max(order_by = pct, n = 10, with_ties = FALSE) %>%
+    ungroup() %>%
+    group_by(bundesland) %>%
+    mutate(city = fct_reorder(city, pct)) %>%
+    ungroup()
+
+  p_de <- ggplot(de_top, aes(x = city, y = pct)) +
+    geom_segment(aes(xend = city, y = 0, yend = pct)) +
+    geom_point(size = 2) +
+    geom_text(aes(label = paste0(round(pct, 1), "%")),
+              hjust = -0.2, size = 3) +
+    scale_y_continuous(
+      name    = "Anteil (%) an allen Befragten",
+      limits  = c(0, 100),
+      breaks  = seq(0, 100, 10),
+      expand  = expansion(mult = c(0, 0.08)),
+      sec.axis = dup_axis(name = "Anteil (%)")
+    ) +
+    coord_flip(clip = "off") +
+    facet_wrap(~ bundesland, scales = "free_y", ncol = 3) +
+    theme_minimal(base_size = 12) +
+    theme(
+      plot.margin          = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+      axis.text.y          = element_text(lineheight = 0.9, size = 9),
+      axis.title.x.top     = element_text(margin = margin(b = 8)),
+      axis.ticks.x.top     = element_line(),
+      axis.title.x.bottom  = element_text(margin = margin(t = 8))
+    ) +
+    labs(
+      title    = "Einsatzort (Großraum) – Deutschland (Top-Städte je Bundesland)",
+      subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+      x = NULL, y = "Anteil (%)"
+    )
+  print(p_de)
+
+  # -----------------------------
+  # B) Außerhalb Deutschlands: Gruppe × Region (facettiert, lollipop, % of n_obs)
+  # -----------------------------
+  non_de <- dat %>%
+    filter(!is.na(cat), cat %in% non_de_groups) %>%
+    mutate(
+      region_group = cat,
+      region = if_else(is.na(sub), "(ohne Regionsangabe)", sub)
+    )
+
+  if (nrow(non_de) > 0) {
+
+    non_de_top <- non_de %>%
+      count(region_group, region, name = "n", sort = TRUE) %>%
+      mutate(pct = n / n_obs * 100) %>%
+      group_by(region_group) %>%
+      slice_max(order_by = pct, n = 15, with_ties = FALSE) %>%
+      mutate(region = fct_reorder(region, pct)) %>%
+      ungroup()
+
+    p_non_de <- ggplot(non_de_top, aes(x = region, y = pct)) +
+      geom_segment(aes(xend = region, y = 0, yend = pct)) +
+      geom_point(size = 2) +
+      geom_text(aes(label = paste0(round(pct, 1), "%")),
+                hjust = -0.2, size = 3) +
+      scale_y_continuous(
+        name    = "Anteil (%) an allen Befragten",
+        limits  = c(0, 100),
+        breaks  = seq(0, 100, 10),
+        expand  = expansion(mult = c(0, 0.08)),
+        sec.axis = dup_axis(name = "Anteil (%)")
+      ) +
+      coord_flip(clip = "off") +
+      facet_wrap(~ region_group, scales = "free_y") +
+      theme_minimal(base_size = 12) +
+      theme(
+        plot.margin          = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+        axis.text.y          = element_text(lineheight = 0.9, size = 9)
+      ) +
+      labs(
+        title    = "Einsatzort (Großraum) – Außerhalb Deutschlands (Top-Regionen je Gruppe)",
+        subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+        x = NULL, y = "Anteil (%)"
+      )
+    print(p_non_de)
+  } else {
+    cat("\nNo non-Germany entries found for 'Einsatzort (Großraum)'.\n")
+  }
+
+  # -----------------------------
+  # C) Kompakte Gesamtsicht (Top 30, lollipop, % of n_obs)
+  # -----------------------------
+  overall <- bind_rows(
+    de_dat %>%
+      mutate(label = if_else(
+        bundesland %in% citystates,
+        bundesland,
+        paste0(bundesland, " — ", if_else(is.na(sub), bundesland, sub))
+      )),
+    non_de %>%
+      mutate(label = paste0(region_group, " — ", region))
+  ) %>%
+    filter(!is.na(label), label != "") %>%
+    count(label, name = "n", sort = TRUE) %>%
+    mutate(pct = n / n_obs * 100) %>%
+    slice_head(n = 30) %>%
+    arrange(pct)
+
+  p_all <- ggplot(overall, aes(x = reorder(label, pct), y = pct)) +
+    geom_segment(aes(xend = label, y = 0, yend = pct)) +
+    geom_point(size = 2) +
+    geom_text(aes(label = paste0(round(pct, 1), "%")),
+              hjust = -0.2, size = 3) +
+    scale_y_continuous(
+      name    = "Anteil (%) an allen Befragten",
+      limits  = c(0, 100),
+      breaks  = seq(0, 100, 10),
+      expand  = expansion(mult = c(0, 0.08)),
+      sec.axis = dup_axis(name = "Anteil (%)")
+    ) +
+    coord_flip(clip = "off") +
+    theme_minimal(base_size = 12) +
+    theme(
+      plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+      axis.text.y = element_text(lineheight = 0.9, size = 9)
+    ) +
+    labs(
+      title    = "Einsatzort (Großraum) – Top 30 Gesamt (Anteil an allen Befragten)",
+      subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+      x = NULL, y = "Anteil (%)"
+    )
+  print(p_all)
+
+}
+
+```
+
+```{r}
+#| label: einsatzort_bundesland_map_fixed_flip
+#| fig.height: 7
+#| fig.width: 10
+#| warning: false
+#| message: false
+
+suppressPackageStartupMessages({
+  library(dplyr); library(stringr); library(ggplot2)
+  library(forcats); library(stringi); library(maps)
+})
+
+# pick long table
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category","subcategory") %in% names(long_src)))
+
+var             <- "Einsatzort (Großraum)"
+non_de_groups   <- c("Europa außer Deutschland","USA","Übrige Welt")
+non_state_extra <- c("Bundesweit","Ausschließlich remote")
+citystates      <- c("Berlin","Hamburg","Bremen")
+n_obs           <- n_distinct(long_src$ID)
+
+keyfy <- function(s) stringi::stri_trans_general(s, "Latin-ASCII") |>
+  tolower() |> stringr::str_replace_all("[^a-z0-9]+","")
+
+dat <- long_src %>%
+  filter(variable == var) %>%
+  mutate(
+    cat = str_squish(category),
+    sub = if_else(is.na(subcategory) | subcategory == "", NA_character_, str_squish(subcategory))
+  )
+
+# ---------------- Bundesländer (dedupe respondent × state) --------------------
+de_dat <- dat %>%
+  filter(!is.na(cat), !(cat %in% c(non_de_groups, non_state_extra))) %>%
+  mutate(
+    bundesland = cat,
+    city = case_when(
+      bundesland %in% citystates ~ bundesland,
+      is.na(sub)                 ~ "(ohne Stadtangabe)",
+      TRUE                       ~ sub
+    )
+  )
+
+de_state <- de_dat %>%
+  distinct(ID, bundesland) %>%
+  count(bundesland, name = "n_state", sort = TRUE) %>%
+  mutate(pct = 100 * n_state / n_obs,
+         key_de = keyfy(bundesland))
+
+have_gisco <- requireNamespace("giscoR", quietly = TRUE) &&
+              requireNamespace("sf", quietly = TRUE)
+
+if (have_gisco) {
+  suppressPackageStartupMessages({ library(sf) })
+  de_sf <- giscoR::gisco_get_nuts(country = "DE", nuts_level = 1, year = 2021) %>%
+    mutate(key_gisco = keyfy(NAME_LATN)) %>%
+    select(key_gisco, NAME_LATN, geometry)
+
+  de_join <- de_sf %>% left_join(de_state, by = c("key_gisco" = "key_de"))
+
+  # FLIPPED scale: low = dark, high = light
+  p_choro <- ggplot(de_join) +
+    geom_sf(aes(fill = pct), color = "grey65", linewidth = 0.2) +
+    scale_fill_gradient(
+      name   = "Anteil (%) an allen Befragten",
+      limits = c(0, 100), breaks = seq(0, 100, 10),
+      low = "#dbe9f6", high = "#274c77", na.value = "grey90"
+    ) +
+    coord_sf() +
+    theme_minimal(base_size = 12) +
+    labs(
+      title    = "Einsatzort (Großraum) – Anteil je Bundesland",
+      subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+      x = NULL, y = NULL
+    )
+  print(p_choro)
+} else {
+  message("giscoR/sf not available → using tile grid fallback.")
+  grid_de <- tibble::tribble(
+    ~bundesland,                ~abbr, ~x, ~y,
+    "Schleswig-Holstein","SH",6,8, "Hamburg","HH",6,9, "Mecklenburg-Vorpommern","MV",7,8,
+    "Niedersachsen","NI",5,7, "Bremen","HB",4,8, "Brandenburg","BB",8,7, "Berlin","BE",8,8,
+    "Nordrhein-Westfalen","NW",4,6, "Sachsen-Anhalt","ST",7,6, "Sachsen","SN",8,5,
+    "Hessen","HE",5,5, "Thüringen","TH",7,5, "Rheinland-Pfalz","RP",4,4, "Saarland","SL",3,4,
+    "Baden-Württemberg","BW",5,3, "Bayern","BY",6,3
+  )
+  state_grid <- grid_de %>% left_join(de_state, by = "bundesland") %>%
+    mutate(pct = tidyr::replace_na(pct, 0), pct_lab = if_else(pct > 0, paste0(round(pct, 1), "%"), ""))
+
+  p_tiles <- ggplot(state_grid, aes(x = x, y = y)) +
+    geom_tile(aes(fill = pct), width = 0.9, height = 0.9, color = "grey70") +
+    geom_text(aes(label = abbr), fontface = "bold", size = 4, color = "white") +
+    geom_text(aes(label = pct_lab), nudge_y = -0.35, size = 3.1, color = "white") +
+    scale_fill_gradient(low = "#dbe9f6", high = "#274c77",
+                        limits = c(0, 100), name = "Anteil (%)") +
+    coord_equal() + theme_minimal(base_size = 12) + theme(panel.grid = element_blank()) +
+    labs(
+      title    = "Einsatzort (Großraum) – Anteil je Bundesland (Tile Grid)",
+      subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+      x = NULL, y = NULL
+    )
+  print(p_tiles)
+}
+
+# ---------------- Cities (dedupe respondent × city) ---------------------------
+# alias map: German → English names used in maps::world.cities
+alias_map <- c(
+  "munchen" = "munich",
+  "koln" = "cologne",
+  "nurnberg" = "nuremberg",
+  "hannover" = "hanover",
+  "monchengladbach" = "monchengladbach",
+  "dusseldorf" = "dusseldorf",   # sometimes "duesseldorf" → dusseldorf after keyfy
+  "munster" = "munster",
+  "wurzburg" = "wurzburg",
+  "koblenz" = "koblenz",
+  "braunschweig" = "brunswick",  # world.cities uses Brunswick
+  "freiburgimbreisgau" = "freiburg",
+  "furth" = "furth",             # keep equal to help typos
+  "oberhausen" = "oberhausen",
+  "mulheimanderuhr" = "mulheiman der ruhr", # best-effort; world.cities uses "Mulheim"
+  "saintaugustin" = "sankt augustin"        # example; extend if needed
+)
+
+de_city <- de_dat %>%
+  filter(!(city %in% c("(ohne Stadtangabe)"))) %>%
+  distinct(ID, city) %>%
+  count(city, name = "n_city", sort = TRUE) %>%
+  mutate(
+    pct       = 100 * n_city / n_obs,
+    city_key  = keyfy(city),
+    match_key = recode(city_key, !!!alias_map, .default = city_key)
+  )
+
+data("world.cities", package = "maps")
+cities_de <- world.cities %>%
+  as_tibble() %>%
+  filter(country.etc == "Germany") %>%
+  transmute(
+    name, lat = lat, lon = long,
+    name_key = keyfy(name)
+  )
+
+de_city_xy <- de_city %>%
+  left_join(cities_de, by = c("match_key" = "name_key"))
+
+# quick report for unmatched top cities
+unmatched <- de_city_xy %>%
+  filter(is.na(lat) | is.na(lon)) %>%
+  slice_head(n = 15) %>%
+  transmute(city, hint = paste0("Add alias: \"", keyfy(city), "\" = \"", keyfy(city), "\""))
+if (nrow(unmatched)) {
+  message("Unmatched city names (top 15):\n", paste0(" - ", unmatched$city, collapse = "\n"))
+}
+
+germany_poly <- ggplot2::map_data("world") %>% filter(region == "Germany")
+
+p_city <- ggplot() +
+  geom_polygon(data = germany_poly,
+               aes(x = long, y = lat, group = group),
+               fill = "grey95", color = "grey60", linewidth = 0.3) +
+  geom_point(data = de_city_xy %>% filter(!is.na(lat) & !is.na(lon)),
+             aes(x = lon, y = lat, size = pct),
+             alpha = 0.65) +
+  scale_size_continuous(name = "Anteil (%) an allen Befragten", range = c(1.5, 12)) +
+  coord_quickmap() +
+  theme_minimal(base_size = 12) +
+  labs(
+    title    = "Einsatzort (Großraum) – Städte (ein Eintrag pro Person & Stadt)",
+    subtitle = paste0("Größe ∝ Anteil (%) · Basis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+    x = NULL, y = NULL
+  )
+print(p_city)
+
+```
+
+## Umfang der Stelle
+
+```{r}
+#| label: umfang_der_stelle
+#| fig.height: 4
+#| fig.width: 8
+#| warning: false
+#| message: false
+
+# pick long table (expects: ID, variable, category, subcategory)
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category") %in% names(long_src)))
+
+var   <- "Umfang der Stelle"
+n_obs <- n_distinct(long_src$ID)
+
+dat <- long_src %>%
+  filter(variable == var) %>%
+  mutate(cat = stringr::str_squish(category)) %>%
+  filter(!is.na(cat) & cat != "") %>%
+  distinct(ID, cat) %>%                 # max 1 hit per Person × Kategorie
+  count(cat, name = "n_cat", sort = TRUE) %>%
+  mutate(
+    pct     = 100 * n_cat / n_obs,
+    cat_lbl = stringr::str_wrap(cat, 40)
+  ) %>%
+  arrange(pct)
+
+ggplot(dat, aes(x = forcats::fct_reorder(cat_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = cat_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08))
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line()
+  ) +
+  labs(
+    title    = "Umfang der Stelle – Anteil an allen Befragten",
+    subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+    x = NULL, y = "Anteil (%)"
+  )
+
+```
+
+## Tätigkeitfeld
+
+```{r}
+#| label: taetigkeitsfeld
+#| fig.height: 15
+#| fig.width: 8
+#| warning: false
+#| message: false
+
+# use long-format table (expects: ID, variable, category)
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category") %in% names(long_src)))
+
+var   <- "Tätigkeitsfeld"
+n_obs <- n_distinct(long_src$ID)
+
+dat <- long_src %>%
+  filter(variable == var) %>%
+  mutate(cat = stringr::str_squish(category)) %>%
+  filter(!is.na(cat) & cat != "") %>%
+  distinct(ID, cat) %>%                 # max 1 hit per Person × Kategorie
+  count(cat, name = "n_cat", sort = TRUE) %>%
+  mutate(
+    pct     = 100 * n_cat / n_obs,
+    cat_lbl = stringr::str_wrap(cat, 40)
+  ) %>%
+  arrange(pct)
+
+ggplot(dat, aes(x = forcats::fct_reorder(cat_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = cat_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08)),
+    sec.axis = dup_axis(name = "Anteil (%)")
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line(),
+    axis.title.x.bottom = element_text(margin = margin(t = 8))
+  ) +
+  labs(
+    title    = "Tätigkeitsfeld – Anteil an allen Befragten",
+    subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+    x = NULL, y = "Anteil (%)"
+  )
+
+```
+
+## Beschreibung der Aufgabe
+
+```{r}
+#| label: beschreibung_der_aufgabe
+#| fig.height: 15
+#| fig.width: 8
+#| warning: false
+#| message: false
+
+# expects long table with: ID, variable, category
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category") %in% names(long_src)))
+
+var   <- "Beschreibung der Aufgabe"
+n_obs <- n_distinct(long_src$ID)
+
+dat <- long_src %>%
+  filter(variable == var) %>%
+  mutate(cat = stringr::str_squish(category)) %>%
+  filter(!is.na(cat) & cat != "") %>%
+  distinct(ID, cat) %>%                 # max 1 hit pro Person × Kategorie
+  count(cat, name = "n_cat", sort = TRUE) %>%
+  mutate(
+    pct     = 100 * n_cat / n_obs,
+    cat_lbl = stringr::str_wrap(cat, 40)
+  ) %>%
+  arrange(pct)
+
+ggplot(dat, aes(x = forcats::fct_reorder(cat_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = cat_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08)),
+    sec.axis = dup_axis(name = "Anteil (%)")
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line(),
+    axis.title.x.bottom = element_text(margin = margin(t = 8))
+  ) +
+  labs(
+    title    = "Beschreibung der Aufgabe – Anteil an allen Befragten",
+    subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+    x = NULL, y = "Anteil (%)"
+  )
+
+```
+
+## Persönliche Kompetenzen
+
+```{r}
+#| label: persoenliche_kompetenzen
+#| fig.height: 5
+#| fig.width: 8
+#| warning: false
+#| message: false
+
+# expects long table with: ID, variable, category
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category") %in% names(long_src)))
+
+var   <- "Persönliche Kompetenzen"
+n_obs <- n_distinct(long_src$ID)
+
+dat <- long_src %>%
+  filter(variable == var) %>%
+  mutate(cat = stringr::str_squish(category)) %>%
+  filter(!is.na(cat) & cat != "") %>%
+  distinct(ID, cat) %>%                 # max 1 hit pro Person × Kategorie
+  count(cat, name = "n_cat", sort = TRUE) %>%
+  mutate(
+    pct     = 100 * n_cat / n_obs,
+    cat_lbl = stringr::str_wrap(cat, 40)
+  ) %>%
+  arrange(pct)
+
+ggplot(dat, aes(x = forcats::fct_reorder(cat_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = cat_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08))
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line()
+  ) +
+  labs(
+    title    = "Persönliche Kompetenzen – Anteil an allen Befragten",
+    subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+    x = NULL, y = "Anteil (%)"
+  )
+```
+
+## Sozial-kommunikative Kompetenzen
+
+```{r}
+#| label: sozial_kommunikative_kompetenzen
+#| fig.width: 8
+#| warning: false
+#| message: false
+
+# expects long table with: ID, variable, category
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category") %in% names(long_src)))
+
+var   <- "Sozial-kommunikative Kompetenzen"
+n_obs <- n_distinct(long_src$ID)
+
+dat <- long_src %>%
+  filter(variable == var) %>%
+  mutate(cat = stringr::str_squish(category)) %>%
+  filter(!is.na(cat) & cat != "") %>%
+  distinct(ID, cat) %>%                 # max 1 hit pro Person × Kategorie
+  count(cat, name = "n_cat", sort = TRUE) %>%
+  mutate(
+    pct     = 100 * n_cat / n_obs,
+    cat_lbl = stringr::str_wrap(cat, 40)
+  ) %>%
+  arrange(pct)
+
+ggplot(dat, aes(x = forcats::fct_reorder(cat_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = cat_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08))
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line()
+  ) +
+  labs(
+    title    = "Sozial-kommunikative Kompetenzen – Anteil an allen Befragten",
+    subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+    x = NULL, y = "Anteil (%)"
+  )
+```
+
+## Aktivitäts- und umsetzungsorientierte Kompetenzen
+
+```{r}
+#| label: aktivitaets_umsetzungsorientierte_kompetenzen
+#| fig.height: 6
+#| fig.width: 8
+#| warning: false
+#| message: false
+
+# expects long table with: ID, variable, category
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category") %in% names(long_src)))
+
+var   <- "Aktivitäts- und umsetzungsorientierte Kompetenzen"
+n_obs <- n_distinct(long_src$ID)
+
+dat <- long_src %>%
+  filter(variable == var) %>%
+  mutate(cat = stringr::str_squish(category)) %>%
+  filter(!is.na(cat) & cat != "") %>%
+  distinct(ID, cat) %>%                 # max 1 hit pro Person × Kategorie
+  count(cat, name = "n_cat", sort = TRUE) %>%
+  mutate(
+    pct     = 100 * n_cat / n_obs,
+    cat_lbl = stringr::str_wrap(cat, 40)
+  ) %>%
+  arrange(pct)
+
+ggplot(dat, aes(x = forcats::fct_reorder(cat_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = cat_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08))
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line(),
+    axis.title.x.bottom = element_text(margin = margin(t = 8))
+  ) +
+  labs(
+    title    = "Aktivitäts- und umsetzungsorientierte Kompetenzen – Anteil an allen Befragten",
+    subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+    x = NULL, y = "Anteil (%)"
+  )
+```
+
+## Denke an Deine bisherigen Teamerfahrungen zurück. Welche Rolle(n) nimmst Du in Teams am liebsten ein?
+
+```{r}
+#| label: teamrollen
+#| fig.width: 8
+#| warning: false
+#| message: false
+
+# expects long table with: ID, variable, category
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category") %in% names(long_src)))
+
+var_full <- "Denke an Deine bisherigen Teamerfahrungen zurück. Welche Rolle(n) nimmst Du in Teams am liebsten ein?"
+n_obs    <- n_distinct(long_src$ID)
+
+dat <- long_src %>%
+  filter(variable == var_full) %>%
+  mutate(
+    cat = stringr::str_squish(category),
+    # shorten category to the token BEFORE the first colon, also drop any leading "..." artifacts
+    cat_short = cat %>%
+      stringr::str_remove("^\\s*\\.\\.\\.") %>%
+      sub(":.*$", "", .) %>%
+      stringr::str_squish()
+  ) %>%
+  filter(!is.na(cat_short) & cat_short != "") %>%
+  distinct(ID, cat_short) %>%          # max 1 hit pro Person × Kurz-Kategorie
+  count(cat_short, name = "n_cat", sort = TRUE) %>%
+  mutate(
+    pct      = 100 * n_cat / n_obs,
+    cat_lbl  = stringr::str_wrap(cat_short, 40)
+  ) %>%
+  arrange(pct)
+
+ggplot(dat, aes(x = forcats::fct_reorder(cat_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = cat_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08))
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line(),
+    axis.title.x.bottom = element_text(margin = margin(t = 8))
+  ) +
+  labs(
+    title    = "Teamrollen – Anteil an allen Befragten",
+    subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+    x = NULL, y = "Anteil (%)"
+  )
+
+```
+
+## Welche Werte sind Dir in dem Team der zu besetzenden Stelle besonders wichtig?
+
+```{r}
+#| label: wichtige_werte_im_team
+#| fig.height: 10
+#| fig.width: 8
+#| warning: false
+#| message: false
+
+# expects long table with: ID, variable, category
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category") %in% names(long_src)))
+
+var_full <- "Welche Werte sind Dir in dem Team der zu besetzenden Stelle besonders wichtig?"
+n_obs    <- n_distinct(long_src$ID)
+
+dat <- long_src %>%
+  filter(variable == var_full) %>%
+  mutate(cat = stringr::str_squish(category)) %>%
+  filter(!is.na(cat) & cat != "") %>%
+  distinct(ID, cat) %>%                 # max 1 hit pro Person × Kategorie
+  count(cat, name = "n_cat", sort = TRUE) %>%
+  mutate(
+    pct     = 100 * n_cat / n_obs,
+    cat_lbl = stringr::str_wrap(cat, 40)
+  ) %>%
+  arrange(pct)
+
+ggplot(dat, aes(x = forcats::fct_reorder(cat_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = cat_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08)),
+    sec.axis = dup_axis(name = "Anteil (%)")
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line(),
+    axis.title.x.bottom = element_text(margin = margin(t = 8))
+  ) +
+  labs(
+    title    = "Wichtige Werte im Team – Anteil an allen Befragten",
+    subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+    x = NULL, y = "Anteil (%)"
+  )
+```
+
+## Mit welchen Aussagen können Unternehmen bei Dir punkten?
+
+```{r}
+#| label: punkte_aussagen
+#| fig.height: 9
+#| fig.width: 9
+#| warning: false
+#| message: false
+
+# expects long table with: ID, variable, category
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category") %in% names(long_src)))
+
+var_full <- "Mit welchen Aussagen können Unternehmen bei Dir punkten?"
+n_obs    <- n_distinct(long_src$ID)
+
+dat <- long_src %>%
+  filter(variable == var_full) %>%
+  mutate(cat = stringr::str_squish(category)) %>%
+  filter(!is.na(cat) & cat != "") %>%
+  distinct(ID, cat) %>%                 # max 1 hit pro Person × Kategorie
+  count(cat, name = "n_cat", sort = TRUE) %>%
+  mutate(
+    pct       = 100 * n_cat / n_obs,
+    # shorten very long statements just for labeling (keep full text in data)
+    cat_lbl   = cat %>% stringr::str_wrap(50) %>% stringr::str_trunc(80)
+  ) %>%
+  arrange(pct)
+
+ggplot(dat, aes(x = forcats::fct_reorder(cat_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = cat_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08)),
+    sec.axis = dup_axis(name = "Anteil (%)")
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line(),
+    axis.title.x.bottom = element_text(margin = margin(t = 8))
+  ) +
+  labs(
+    title    = "Aussagen – Anteil an allen Befragten",
+    subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+    x = NULL, y = "Anteil (%)"
+  )
+```
+
+## Meine Bildungsabschlüsse
+
+```{r}
+#| label: meine_bildungsabschluesse
+#| fig.height: 6
+#| fig.width: 8
+#| warning: false
+#| message: false
+
+var   <- "Meine Bildungsabschlüsse"
+
+dat <- long_src %>%
+  filter(variable == var) %>%
+  mutate(cat = stringr::str_squish(category)) %>%
+  filter(!is.na(cat) & cat != "") %>%
+  distinct(ID, cat) %>%                 # max 1 hit pro Person × Kategorie
+  count(cat, name = "n_cat", sort = TRUE) %>%
+  mutate(
+    pct     = 100 * n_cat / n_obs,
+    cat_lbl = stringr::str_wrap(cat, 40)
+  ) %>%
+  arrange(pct)
+
+ggplot(dat, aes(x = forcats::fct_reorder(cat_lbl, pct), y = pct)) +
+  geom_segment(aes(xend = cat_lbl, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08))
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line()
+  ) +
+  labs(
+    title    = "Meine Bildungsabschlüsse – Anteil an allen Befragten",
+    subtitle = paste0("Prozentbasis: alle Befragten (N = ", format(n_obs, big.mark = "."), ")"),
+    x = NULL, y = "Anteil (%)"
+  )
+```
+
+## Bruttojahresgehalt
+
+```{r}
+#| label: bruttojahresgehalt_long
+#| fig.height: 8
+#| fig.width: 9
+#| warning: false
+#| message: false
+
+long_src <- if (exists("df_long")) df_long else if (exists("df_main")) df_main else NULL
+stopifnot(!is.null(long_src), all(c("ID","variable","category") %in% names(long_src)))
+
+var   <- "Bruttojahresgehalt"
+n_obs <- dplyr::n_distinct(long_src$ID)
+
+# exact order you showed (top to bottom = low → high)
+bucket_order <- c(
+  "Ich möchte dazu keine Angabe machen.",
+  "unbezahltes Pflichtpraktikum",
+  "bis 6.240 EUR",
+  "bis 8.000 EUR",
+  "bis 12.000 EUR",
+  "bis zu 20.000 EUR",
+  "20.000 - 30.000 EUR",
+  "30.000 - 40.000 EUR",
+  "40.000 - 50.000 EUR",
+  "50.000 - 60.000 EUR",
+  "60.000 - 70.000 EUR",
+  "70.000 - 80.000 EUR",
+  "80.000 - 90.000 EUR",
+  "90.000 - 100.000 EUR",
+  "100.000 - 110.000 EUR",
+  "110.000 - 120.000 EUR",
+  "120.000 - 130.000 EUR",
+  "130.000 - 140.000 EUR",
+  "140.000 - 150.000 EUR",
+  "ab 150.000 EUR"
+)
+
+# toggle exclusions here if desired
+exclude_buckets <- NULL
+
+dat <- long_src %>%
+  dplyr::filter(variable == var) %>%
+  dplyr::transmute(
+    ID,
+    bucket = stringr::str_squish(category)
+  ) %>%
+  dplyr::filter(!is.na(bucket) & bucket != "") %>%
+  dplyr::distinct(ID, bucket) %>%              # one bucket per person
+  dplyr::mutate(bucket = factor(bucket, levels = bucket_order)) %>%
+  dplyr::filter(!bucket %in% exclude_buckets) %>%
+  dplyr::count(bucket, name = "n", drop = FALSE) %>%  # keep empty levels for clarity
+  dplyr::mutate(
+    pct      = 100 * n / n_obs,
+    # label tweak only (do not alter 'bucket' itself)
+    bucket_lab = dplyr::case_when(
+      as.character(bucket) == "bis zu 20.000 EUR" ~ "bis 20.000 EUR",
+      TRUE ~ as.character(bucket)
+    )
+  ) %>%
+  dplyr::arrange(match(bucket, bucket_order))
+
+# lollipop plot
+ggplot(dat, aes(x = forcats::fct_reorder(bucket_lab, as.numeric(bucket)),
+                y = pct)) +
+  geom_segment(aes(xend = bucket_lab, y = 0, yend = pct)) +
+  geom_point(size = 2) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            hjust = -0.2, size = 3) +
+  scale_y_continuous(
+    name   = "Anteil (%)",
+    limits = c(0, 100),
+    breaks = seq(0, 100, 10),
+    expand = expansion(mult = c(0, 0.08)),
+    sec.axis = dup_axis(name = "Anteil (%)")
+  ) +
+  geom_hline(yintercept = 50, linetype = "dashed", linewidth = 0.4, color = "grey50") +
+  coord_flip(clip = "off") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.margin = grid::unit(c(5.5, 30, 5.5, 5.5), "pt"),
+    axis.text.y = element_text(lineheight = 0.9, size = 9),
+    axis.title.x.top    = element_text(margin = margin(b = 8)),
+    axis.ticks.x.top    = element_line(),
+    axis.title.x.bottom = element_text(margin = margin(t = 8))
+  ) +
+  labs(
+    title    = "Bruttojahresgehalt – Anteil an allen Befragten (Long-Daten)",
+    subtitle = paste0("Prozentbasis: N = ", format(n_obs, big.mark = "."), 
+                      if (length(exclude_buckets)) paste0(" | ohne: ", paste(exclude_buckets, collapse = ", "))),
+    x = NULL, y = "Anteil (%)"
+  )
+
+```
+
+## Co-occurrence: top pairs
+
+```{r}
+#| label: indicator-cooccurrence
+#| tbl-cap: "Top co-occurring indicator pairs (support & percentage)"
+if (length(ind_cols) > 1) {
+  # binary matrix (NA -> 0)
+  X <- as.matrix(df_main[ind_cols]); X[is.na(X)] <- 0L
+  n <- nrow(X)
+
+  # per-feature prevalence and 11-co-occurrence counts
+  p    <- colSums(X) / n
+  co11 <- t(X) %*% X
+
+  lbl <- function(v) shorten_prefix(v) |> stringr::str_trunc(70)
+
+  # build tidy table; keep each unordered pair only once (upper triangle)
+  top_pairs <- as.data.frame(as.table(co11)) %>%
+    rename(var1 = Var1, var2 = Var2, support_11 = Freq) %>%
+    mutate(
+      i1 = match(var1, colnames(co11)),
+      i2 = match(var2, colnames(co11))
+    ) %>%
+    filter(i1 < i2, support_11 > 0) %>%      # <<< no duplicates
+    mutate(
+      pct_11 = round(100 * support_11 / n, 2)
+    ) %>%
+    transmute(
+      `Feature A`      = lbl(as.character(var1)),
+      `Feature B`      = lbl(as.character(var2)),
+      `gemeinsame 1er` = as.integer(support_11),
+      `Anteil (%)`     = pct_11
+    ) %>%
+    arrange(desc(`Anteil (%)`), desc(`gemeinsame 1er`)) %>%
+    slice_head(n = 30)
+
+  # print table
+  if (requireNamespace("DT", quietly = TRUE)) {
+    DT::datatable(
+      top_pairs,
+      options = list(pageLength = 15, scrollX = TRUE, dom = "tip"),
+      rownames = FALSE
+    )
+  } else {
+    knitr::kable(
+      top_pairs,
+      align = c("l","l","r","r"),
+      caption = "Top co-occurring indicator pairs (höchster gemeinsamer Anteil)"
+    )
+  }
+} else {
+  cat("Not enough indicator columns for co-occurrence.\n")
+}
+
+
+```
+
+## Response counts (how many indicators selected)
+
+```{r}
+#| label: burden
+row_ones <- if (length(ind_cols)) rowSums(df_main[ind_cols], na.rm = TRUE) else rep(0, nrow(df_main))
+ggplot(tibble(ones = row_ones), aes(x = ones)) +
+  geom_histogram(bins = 30) +
+  theme_minimal(base_size = 12) +
+  labs(title = "Antwortumfang (Anzahl gesetzter Indikatoren pro Person)", x = "# Indikatoren", y = "Anzahl Personen")
+```
+
+```         
+```
+
+## Appendix exports
+
+```{r}
+#| label: appendix-exports
+#| echo: false
+#| message: false
+#| warning: false
+
+# ---- Full data dictionary (inside document) ----------------------------------
+if (!exists("dict")) stop("`dict` not found — ensure the 'data-dictionary' chunk ran.")
+dict_full <- dict %>%
+  mutate(variable = shorten_prefix(variable)) %>%
+  arrange(family, desc(n_unique))
+
+if (requireNamespace("DT", quietly = TRUE)) {
+  DT::datatable(
+    dict_full,
+    options = list(pageLength = 50, scrollX = TRUE),
+    rownames = FALSE,
+    caption  = "Full data dictionary (all columns)"
+  )
+} else {
+  cat("### Full data dictionary (all columns)\n\n")
+  print(dict_full, n = Inf)
+}
+
+# ---- Optional: show underlying summary tables (no saving) --------------------
+if (exists("top_inds")) {
+  cat("\n\n### Top indicator features (underlying table)\n\n")
+  top_inds_out <- top_inds %>%
+    mutate(
+      feature = shorten_prefix(feature),
+      share   = scales::percent(pct_ones, accuracy = 0.1)
+    ) %>%
+    select(Feature = feature, Selections = n_ones, Share = share)
+  print(top_inds_out, n = nrow(top_inds_out))
+}
+
+if (exists("sc_missing")) {
+  cat("\n\n### Single-choice with most missing / 'keine Angabe' (underlying table)\n\n")
+
+  # Robustly compute 'Available (n)' even if source object lacks n_nonmissing
+  sc_missing_out <- sc_missing %>%
+    mutate(
+      Variable = shorten_prefix(variable),
+      `Missing share` = if ("pct_missing" %in% names(.)) {
+        scales::percent(pct_missing / 100, accuracy = 0.1)
+      } else {
+        NA_character_
+      },
+      `Available (n)` = case_when(
+        "n_nonmissing" %in% names(.) ~ n_nonmissing,
+        exists("n_obs", inherits = TRUE) & "pct_missing" %in% names(.) ~
+          as.integer(round(n_obs * (1 - pct_missing / 100))),
+        TRUE ~ NA_integer_
+      )
+    ) %>%
+    select(Variable, `Missing share`, `Available (n)`) %>%
+    arrange(desc(`Available (n)`))
+
+  print(sc_missing_out, n = nrow(sc_missing_out))
+}
+
+```
+
+## Session info
+
+```{r}
+#| label: session
+sessionInfo()
+```

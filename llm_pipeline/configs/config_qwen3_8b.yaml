@@ -1,0 +1,28 @@
+provider: local
+provider_name: qwen3-8b
+model: Qwen/Qwen3-8B
+
+temperature: 1
+max_output_tokens: 4000
+
+concurrency: 4
+
+run_scope:
+  rows: 30
+  ages: [40]
+  names: "all"
+
+cv_output_preference: json
+
+extra_body:
+  chat_template_kwargs:
+    enable_thinking: false
+
+inputs:
+  data_csv: preprocessing/output/sample_data_clean.csv
+  names_file: llm_pipeline/inputs/names.txt
+  cv_prompt_template: llm_pipeline/prompts/cv_prompt_v1.md
+
+retry:
+  max_attempts: 3
+  initial_backoff_seconds: 5

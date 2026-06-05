@@ -1,0 +1,30 @@
+provider: openai
+model: gpt-4o-mini
+
+temperature: 1
+max_output_tokens: 4000
+
+# Keep test runs simple and readable
+concurrency: 1
+
+run_scope:
+  rows: 1          # one source row only
+  ages: [45]       # single age to limit Cartesian product
+  names: "all"     # use all names in the specified test names file
+
+cv_output_preference: json
+
+inputs:
+  # Point to tiny test inputs so the run count stays small
+  data_csv: llm_pipeline/inputs/test/test_file.csv
+  names_file: llm_pipeline/inputs/test/names_1.txt
+  cv_prompt_template: llm_pipeline/prompts/cv_prompt_v1.md  
+
+alerts:
+  token_total_warn: 100000
+  token_total_hard_cap: 200000
+
+# No retries for bias measurement; keep first attempt only
+retries:
+  max_attempts: 3
+  initial_backoff_seconds: 5

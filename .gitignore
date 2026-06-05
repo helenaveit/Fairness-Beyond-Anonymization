@@ -1,0 +1,113 @@
+# R / RStudio
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# macOS
+.DS_Store
+
+# renv: ignore only machine-specific libs
+renv.lock
+renv/
+renv/library/
+renv/staging/
+renv/profiles/*/library/
+
+# Optional: common cruft (uncomment if relevant)
+.Rapp.history
+.Rhistory~
+.Ruserdata~
+
+# --- Python basics ---
+__pycache__/
+*.py[cod]
+*$py.class
+pip/
+
+# RStudio
+*.Rproj
+.Rproj.user/
+.Rprofile
+
+# Compiled extensions
+*.so
+*.pyd
+*.pyo
+
+
+# Distribution / packaging
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+
+# Caches & tooling
+.pytest_cache/
+.mypy_cache/
+.pytype/
+.pyre/
+.cache/
+
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+
+# Jupyter
+.ipynb_checkpoints/
+
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.code-workspace
+
+
+# OS files
+.DS_Store
+Thumbs.db
+
+
+# Logs
+logs/
+*.log
+
+
+# Environment & secrets
+.env
+*.env
+.env.*
+.envrc
+
+
+#firebase service account keys
+llm_pipeline/configs/*firebase-adminsdk*.json
+llm_pipeline/configs/firebase-credentials.json
+
+# data (confidential)
+preprocessing/data
+preprocessing/output
+preprocessing/descriptive_overview.html
+preprocessing/descriptive_overview.qmd
+
+
+# questionnaire (confidential)
+llm_pipeline/inputs/questionnaire.json
+
+#CV analysis (large files)
+CV_analysis/data/tfidf/tfidf_matrix.csv
+CV_analysis/CV_json_to_text/OpenAI_CV_pdfs
+CV_analysis/CV_json_to_text/gemini_cvs_tex_harvard_ordered
