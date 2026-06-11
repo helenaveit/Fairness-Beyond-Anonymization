@@ -1,4 +1,4 @@
-#  CV Analysis (STAGE 2: RESUME SCREENING AUDIT)
+#  CV Analysis (STAGE 2: RÉSUMÉ SCREENING AUDIT)
 
 This folder contains code and derived data used to analyse generated CVs across protected groups (`gender`, `ethnicity`). The analysis focuses on structural résumé features, agentic/communal lexical counts (only part of appendix), and TF-IDF lasso seed-sensitivity models.
 
