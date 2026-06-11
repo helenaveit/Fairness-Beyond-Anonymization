@@ -1,11 +1,10 @@
-# Résumé Screening Audit (Stage 2)
+#  CV Analysis (STAGE 2: RESUME SCREENING AUDIT)
 
 This folder contains code and derived data used to analyse generated CVs across protected groups (`gender`, `ethnicity`). The analysis focuses on structural résumé features, agentic/communal lexical counts (only part of appendix), and TF-IDF lasso seed-sensitivity models.
 
 ## Project Structure
 
 - `code/` — 
-  - `00_fix_cv_json.py` — normalizes generated CV JSON if raw run exports are available locally
   - `01_structural_features.py` — extracts section counts and word-count features from CV JSON
   - `02_lexical_counts.py` — counts German agentic and communal word stems
   - `03_tfidf_lasso_seed_sensitivity.R` — repeats TF-IDF lasso models across random seeds
