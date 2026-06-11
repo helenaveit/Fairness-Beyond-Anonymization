@@ -1,0 +1,399 @@
+\begin{longtable}{lllrrr@{\hspace{1em}}r@{\hspace{1em}}r}
+\caption{Seed sensitivity of selected TF-IDF lasso coefficients.}\label{tab:tfidf_seed_coef_frequency}\\
+\toprule
+Model & Target & Term & $n\,(/30)$ & Mean selected & Mean coef. & \multicolumn{2}{c}{Mean} \\
+\cmidrule(lr){7-8}
+ & & & & features & & Acc & AUC \\
+\midrule
+\endfirsthead
+\toprule
+Model & Target & Term & $n\,(/30)$ & Mean selected & Mean coef. & \multicolumn{2}{c}{Mean} \\
+\cmidrule(lr){7-8}
+ & & & & features & & Acc & AUC \\
+\midrule
+\endhead
+\midrule
+\multicolumn{8}{r}{Continued on next page} \\
+\midrule
+\endfoot
+\bottomrule
+\endlastfoot
+ChatGPT & gender & fachkraft & 30 & 4.900 & -0.991 & 0.825 & 0.900 \\
+ &  & fach-mann/-frau & 30 &  & 0.600 &  &  \\
+ &  & kauf-mann/-frau & 26 &  & -0.199 &  &  \\
+ &  & kommunikationsspezialist & 17 &  & -0.057 &  &  \\
+ &  & kommunikationsprofi & 8 &  & 0.017 &  &  \\
+ &  & sport & 5 &  & 0.023 &  &  \\
+ &  & frau & 1 &  & 0.000 &  &  \\
+\cmidrule(lr){2-8}
+ & ethnicity & muttersprache & 16 & 1.700 & -0.001 & 0.500 & 0.499 \\
+ &  & bildungsprogrammen & 2 &  & 0.000 &  &  \\
+ &  & haltung & 1 &  & 0.000 &  &  \\
+ &  & bildungsmanager & 1 &  & 0.000 &  &  \\
+ &  & märz & 1 &  & 0.000 &  &  \\
+\midrule
+Gemini & gender & fachkraft & 30 & 6.933 & -1.541 & 0.877 & 0.915 \\
+ &  & profi & 30 &  & 0.133 &  &  \\
+ &  & führungskraft & 29 &  & -0.342 &  &  \\
+ &  & persönlichkeit & 26 &  & -0.078 &  &  \\
+ &  & kauf-mann/-frau & 19 &  & -0.089 &  &  \\
+ &  & berufserfahren & 6 &  & -0.074 &  &  \\
+ &  & journalistisch & 5 &  & -0.043 &  &  \\
+ &  & berufstätig & 4 &  & 0.037 &  &  \\
+ &  & durchsetzungsvermögen & 4 &  & -0.034 &  &  \\
+ &  & fußball & 3 &  & 0.012 &  &  \\
+ &  & kommunikationsstark & 2 &  & -0.043 &  &  \\
+ &  & mahnwesen & 2 &  & -0.040 &  &  \\
+ &  & mitteleuropa & 2 &  & -0.027 &  &  \\
+ &  & landshut & 2 &  & -0.017 &  &  \\
+ &  & communications & 2 &  & -0.011 &  &  \\
+ &  & finanzanalyst & 1 &  & -0.066 &  &  \\
+ &  & netzwerken & 1 &  & -0.035 &  &  \\
+ &  & studie & 1 &  & 0.028 &  &  \\
+ &  & scientists & 1 &  & -0.021 &  &  \\
+ &  & integrativ & 1 &  & 0.012 &  &  \\
+ &  & kontenabstimmung & 1 &  & -0.011 &  &  \\
+ &  & junior & 1 &  & -0.010 &  &  \\
+ &  & rechtswissenschaft & 1 &  & -0.006 &  &  \\
+ &  & hgb & 1 &  & -0.006 &  &  \\
+ &  & regensburg & 1 &  & -0.004 &  &  \\
+ &  & unternehmenskommunikation & 1 &  & -0.003 &  &  \\
+ &  & management & 1 &  & -0.002 &  &  \\
+\cmidrule(lr){2-8}
+ & ethnicity & austausch & 24 & 3.100 & -0.023 & 0.521 & 0.540 \\
+ &  & muttersprache & 9 &  & 0.008 &  &  \\
+ &  & fußball & 4 &  & -0.019 &  &  \\
+ &  & persönlichkeitsentwicklung & 3 &  & -0.005 &  &  \\
+ &  & freuen & 2 &  & -0.021 &  &  \\
+ &  & bereitschaft & 2 &  & -0.018 &  &  \\
+ &  & asana & 2 &  & 0.001 &  &  \\
+ &  & fachartikel & 1 &  & 0.082 &  &  \\
+ &  & geschäftsmodelle & 1 &  & 0.052 &  &  \\
+ &  & ableitung & 1 &  & 0.030 &  &  \\
+ &  & arbeitsumfeld & 1 &  & 0.030 &  &  \\
+ &  & messen & 1 &  & 0.018 &  &  \\
+ &  & koordinationsfähigkeit & 1 &  & -0.018 &  &  \\
+ &  & bank & 1 &  & -0.016 &  &  \\
+ &  & einfühlungsvermögen & 1 &  & -0.010 &  &  \\
+ &  & akquisition & 1 &  & -0.009 &  &  \\
+ &  & beratungshaus & 1 &  & -0.008 &  &  \\
+ &  & solide & 1 &  & -0.008 &  &  \\
+ &  & feld & 1 &  & -0.005 &  &  \\
+ &  & professionell & 1 &  & 0.004 &  &  \\
+ &  & finanzbuchhalter & 1 &  & 0.003 &  &  \\
+ &  & betriebswirtschaftslehren & 1 &  & 0.003 &  &  \\
+ &  & musterstadt & 1 &  & 0.002 &  &  \\
+ &  & stakeholdermanagement & 1 &  & -0.001 &  &  \\
+\midrule
+Qwen 4B & gender & fachkraft & 30 & 9.167 & -0.363 & 0.636 & 0.683 \\
+ &  & wertvoll & 30 &  & 0.084 &  &  \\
+ &  & fachperson & 29 &  & -0.070 &  &  \\
+ &  & fokus & 20 &  & -0.029 &  &  \\
+ &  & liegen & 16 &  & 0.036 &  &  \\
+ &  & fach-mann/-frau & 15 &  & 0.016 &  &  \\
+ &  & prägen & 12 &  & 0.023 &  &  \\
+ &  & erfahrenе & 11 &  & -0.025 &  &  \\
+ &  & fachlich & 9 &  & 0.008 &  &  \\
+ &  & arbeitsatmosphär & 6 &  & 0.045 &  &  \\
+ &  & erfahrend & 6 &  & 0.009 &  &  \\
+ &  & interdisziplinär & 5 &  & -0.009 &  &  \\
+ &  & grundlage & 5 &  & 0.006 &  &  \\
+ &  & entwickelnd & 4 &  & -0.031 &  &  \\
+ &  & kombinieren & 3 &  & 0.017 &  &  \\
+ &  & sprechen & 3 &  & 0.009 &  &  \\
+ &  & gebäude & 3 &  & -0.008 &  &  \\
+ &  & möchten & 3 &  & 0.008 &  &  \\
+ &  & gemeinsam & 2 &  & 0.016 &  &  \\
+ &  & lösen & 2 &  & 0.012 &  &  \\
+ &  & abschließen & 2 &  & 0.011 &  &  \\
+ &  & solutions & 2 &  & -0.010 &  &  \\
+ &  & fähigkeit & 2 &  & 0.010 &  &  \\
+ &  & praxis & 2 &  & 0.007 &  &  \\
+ &  & bereich & 2 &  & 0.003 &  &  \\
+ &  & programmierend & 2 &  & -0.002 &  &  \\
+ &  & personalmanagement & 1 &  & 0.038 &  &  \\
+ &  & mba & 1 &  & -0.029 &  &  \\
+ &  & arbeitsmodelle & 1 &  & -0.028 &  &  \\
+ &  & vielzahl & 1 &  & 0.026 &  &  \\
+ &  & analysis & 1 &  & 0.025 &  &  \\
+ &  & branche & 1 &  & 0.022 &  &  \\
+ &  & umfassen & 1 &  & 0.022 &  &  \\
+ &  & tätig & 1 &  & 0.011 &  &  \\
+ &  & technologie & 1 &  & -0.008 &  &  \\
+ &  & sport & 1 &  & 0.006 &  &  \\
+ &  & berufserfahren & 1 &  & -0.006 &  &  \\
+ &  & aufbauorganisationen & 1 &  & 0.005 &  &  \\
+ &  & of & 1 &  & 0.005 &  &  \\
+ &  & bestreben & 1 &  & -0.004 &  &  \\
+ &  & system & 1 &  & -0.003 &  &  \\
+ &  & bayreuth & 1 &  & -0.003 &  &  \\
+ &  & problem & 1 &  & 0.003 &  &  \\
+ &  & berater & 1 &  & 0.002 &  &  \\
+ &  & engineering & 1 &  & -0.001 &  &  \\
+\cmidrule(lr){2-8}
+ & ethnicity & berl & 2 & 1.367 & 0.000 & 0.500 & 0.499 \\
+ &  & aufgabe & 2 &  & 0.000 &  &  \\
+ &  & projektarbeit & 1 &  & 0.000 &  &  \\
+ &  & einfühlsam & 1 &  & 0.000 &  &  \\
+ &  & familienunternehmen & 1 &  & 0.000 &  &  \\
+ &  & freizeitaktivität & 1 &  & 0.000 &  &  \\
+ &  & value & 1 &  & 0.000 &  &  \\
+ &  & insbesondere & 1 &  & 0.000 &  &  \\
+ &  & abschluss & 1 &  & 0.000 &  &  \\
+\midrule
+Qwen 4B top-k 64 & gender & fachkraft & 30 & 10.267 & -0.206 & 0.616 & 0.652 \\
+ &  & fachperson & 30 &  & -0.095 &  &  \\
+ &  & teammitglied & 30 &  & 0.083 &  &  \\
+ &  & umfassen & 29 &  & 0.054 &  &  \\
+ &  & prägen & 25 &  & 0.025 &  &  \\
+ &  & person & 19 &  & -0.023 &  &  \\
+ &  & motiviert & 18 &  & -0.020 &  &  \\
+ &  & technologisch & 13 &  & 0.020 &  &  \\
+ &  & reichen & 11 &  & 0.033 &  &  \\
+ &  & integrativ & 10 &  & -0.017 &  &  \\
+ &  & wobei & 9 &  & 0.023 &  &  \\
+ &  & kandidat & 5 &  & 0.031 &  &  \\
+ &  & einzigartig & 3 &  & -0.018 &  &  \\
+ &  & wirtschaftsinformatik & 3 &  & 0.017 &  &  \\
+ &  & idealerweise & 3 &  & 0.015 &  &  \\
+ &  & geben & 3 &  & 0.011 &  &  \\
+ &  & leidenschaftlich & 3 &  & -0.005 &  &  \\
+ &  & leidenschaft & 2 &  & -0.038 &  &  \\
+ &  & branchenerfahrung & 2 &  & 0.024 &  &  \\
+ &  & anpassungsfähig & 2 &  & 0.013 &  &  \\
+ &  & weiterentwicklung & 2 &  & -0.010 &  &  \\
+ &  & wodurch & 2 &  & 0.005 &  &  \\
+ &  & kommunikationsagentur & 2 &  & -0.003 &  &  \\
+ &  & projektplanung & 1 &  & -0.033 &  &  \\
+ &  & musik & 1 &  & 0.028 &  &  \\
+ &  & rolle & 1 &  & -0.026 &  &  \\
+ &  & reisen & 1 &  & 0.025 &  &  \\
+ &  & weiterbilden & 1 &  & 0.024 &  &  \\
+ &  & unternehmenskultur & 1 &  & -0.020 &  &  \\
+ &  & internationals & 1 &  & -0.020 &  &  \\
+ &  & begleitung & 1 &  & -0.019 &  &  \\
+ &  & dank & 1 &  & -0.017 &  &  \\
+ &  & schnell & 1 &  & 0.016 &  &  \\
+ &  & berufserfahren & 1 &  & 0.014 &  &  \\
+ &  & teams & 1 &  & 0.013 &  &  \\
+ &  & projektassistent & 1 &  & -0.007 &  &  \\
+ &  & viele & 1 &  & -0.007 &  &  \\
+ &  & sport & 1 &  & 0.006 &  &  \\
+ &  & führungskompetenz & 1 &  & 0.005 &  &  \\
+ &  & workshops & 1 &  & -0.005 &  &  \\
+ &  & schätzen & 1 &  & 0.003 &  &  \\
+ &  & arbeitsweise & 1 &  & 0.001 &  &  \\
+ &  & machine & 1 &  & 0.001 &  &  \\
+ &  & abteilung & 1 &  & 0.000 &  &  \\
+ &  & programmierend & 1 &  & 0.000 &  &  \\
+\cmidrule(lr){2-8}
+ & ethnicity & berl & 26 & 3.300 & -0.050 & 0.519 & 0.529 \\
+ &  & alt & 18 &  & 0.050 &  &  \\
+ &  & vision & 4 &  & -0.021 &  &  \\
+ &  & schaffen & 3 &  & 0.042 &  &  \\
+ &  & analytik & 3 &  & 0.012 &  &  \\
+ &  & teamentwicklung & 1 &  & 0.035 &  &  \\
+ &  & verbinden & 1 &  & 0.034 &  &  \\
+ &  & begleiten & 1 &  & 0.023 &  &  \\
+ &  & kollege & 1 &  & 0.023 &  &  \\
+ &  & strategisch & 1 &  & -0.015 &  &  \\
+ &  & operativ & 1 &  & -0.012 &  &  \\
+ &  & hintergrund & 1 &  & 0.008 &  &  \\
+ &  & tätig & 1 &  & 0.006 &  &  \\
+ &  & datenwissenschaft & 1 &  & -0.005 &  &  \\
+ &  & konzern & 1 &  & 0.004 &  &  \\
+ &  & fachkraft & 1 &  & -0.003 &  &  \\
+ &  & reisen & 1 &  & 0.002 &  &  \\
+ &  & kommunikativ & 1 &  & -0.002 &  &  \\
+ &  & information & 1 &  & 0.001 &  &  \\
+ &  & wiesbaden & 1 &  & -0.001 &  &  \\
+\midrule
+Qwen 8B & gender & fachkraft & 30 & 11.000 & -0.554 & 0.670 & 0.754 \\
+ &  & sport & 30 &  & 0.178 &  &  \\
+ &  & ergebnisorientiert & 30 &  & 0.130 &  &  \\
+ &  & neu & 24 &  & 0.021 &  &  \\
+ &  & sozialpädagoge & 18 &  & 0.069 &  &  \\
+ &  & erprobt & 18 &  & -0.050 &  &  \\
+ &  & pädagog & 13 &  & -0.026 &  &  \\
+ &  & vollzeit & 13 &  & 0.023 &  &  \\
+ &  & marketingkauf-mann/-frau & 12 &  & -0.025 &  &  \\
+ &  & professionell & 10 &  & -0.017 &  &  \\
+ &  & spezialist & 9 &  & 0.020 &  &  \\
+ &  & begrenzt & 9 &  & -0.012 &  &  \\
+ &  & komplex & 8 &  & 0.007 &  &  \\
+ &  & ki & 7 &  & 0.017 &  &  \\
+ &  & franzoesisch & 6 &  & 0.022 &  &  \\
+ &  & zielorientieren & 5 &  & -0.014 &  &  \\
+ &  & ideal & 4 &  & 0.025 &  &  \\
+ &  & coach & 4 &  & 0.013 &  &  \\
+ &  & vertriebsmanager & 4 &  & 0.009 &  &  \\
+ &  & vielzahl & 3 &  & 0.036 &  &  \\
+ &  & treiber & 3 &  & -0.030 &  &  \\
+ &  & berufserfahren & 3 &  & 0.010 &  &  \\
+ &  & experte/-in & 2 &  & 0.029 &  &  \\
+ &  & communications & 2 &  & -0.019 &  &  \\
+ &  & team & 2 &  & 0.009 &  &  \\
+ &  & wegbereiter & 2 &  & -0.008 &  &  \\
+ &  & kulturwissenschaft & 2 &  & -0.008 &  &  \\
+ &  & freiwilligenarbeit & 2 &  & 0.003 &  &  \\
+ &  & yoga & 1 &  & -0.067 &  &  \\
+ &  & konferenz & 1 &  & -0.041 &  &  \\
+ &  & assistenz & 1 &  & -0.035 &  &  \\
+ &  & aufbauen & 1 &  & 0.028 &  &  \\
+ &  & sozialmanagement & 1 &  & 0.027 &  &  \\
+ &  & schule & 1 &  & 0.025 &  &  \\
+ &  & leidenschaftlich & 1 &  & -0.019 &  &  \\
+ &  & bereitschaft & 1 &  & -0.019 &  &  \\
+ &  & design & 1 &  & -0.015 &  &  \\
+ &  & verantwortungsbewusst & 1 &  & -0.013 &  &  \\
+ &  & selbstorganisation & 1 &  & -0.011 &  &  \\
+ &  & weiterentwicklung & 1 &  & 0.010 &  &  \\
+ &  & fachspezialist & 1 &  & 0.010 &  &  \\
+ &  & aufbau & 1 &  & 0.009 &  &  \\
+ &  & vertriebsprozesse & 1 &  & 0.008 &  &  \\
+ &  & personalplanung & 1 &  & 0.007 &  &  \\
+ &  & entscheidungsfindung & 1 &  & -0.005 &  &  \\
+ &  & umfang & 1 &  & -0.004 &  &  \\
+ &  & interagierend & 1 &  & -0.002 &  &  \\
+ &  & global & 1 &  & -0.002 &  &  \\
+ &  & skills & 1 &  & -0.002 &  &  \\
+ &  & zielorientierung & 1 &  & -0.002 &  &  \\
+ &  & verantwortlich & 1 &  & 0.001 &  &  \\
+ &  & aufbauorganisation & 1 &  & 0.001 &  &  \\
+ &  & gespannt & 1 &  & -0.001 &  &  \\
+\cmidrule(lr){2-8}
+ & ethnicity & kulturell & 6 & 1.633 & 0.000 & 0.500 & 0.503 \\
+ &  & wertvoll & 5 &  & -0.004 &  &  \\
+ &  & aktivität & 3 &  & 0.000 &  &  \\
+ &  & anbieten & 2 &  & 0.000 &  &  \\
+ &  & austauschprojekt & 2 &  & 0.000 &  &  \\
+ &  & kaufmännisch & 1 &  & 0.000 &  &  \\
+\midrule
+Qwen 8B top-k 64 & gender & fachkraft & 30 & 10.267 & -0.459 & 0.654 & 0.704 \\
+ &  & sport & 28 &  & 0.069 &  &  \\
+ &  & fachspezialist & 25 &  & 0.082 &  &  \\
+ &  & ergebnisorientiert & 25 &  & 0.057 &  &  \\
+ &  & pädagoge & 18 &  & 0.048 &  &  \\
+ &  & pädagog & 17 &  & -0.045 &  &  \\
+ &  & erprobt & 16 &  & -0.035 &  &  \\
+ &  & steuer & 8 &  & 0.036 &  &  \\
+ &  & alt & 8 &  & 0.025 &  &  \\
+ &  & breit & 8 &  & 0.023 &  &  \\
+ &  & einklang & 8 &  & 0.019 &  &  \\
+ &  & trainer & 8 &  & 0.015 &  &  \\
+ &  & project & 7 &  & -0.023 &  &  \\
+ &  & kommunikationsexperte/-in & 5 &  & -0.009 &  &  \\
+ &  & leidenschaft & 4 &  & -0.022 &  &  \\
+ &  & interessiert & 4 &  & -0.021 &  &  \\
+ &  & consultant & 4 &  & 0.016 &  &  \\
+ &  & kundenorientierung & 4 &  & -0.011 &  &  \\
+ &  & ermöglichen & 3 &  & 0.044 &  &  \\
+ &  & prozeß & 3 &  & 0.028 &  &  \\
+ &  & stärke & 3 &  & 0.026 &  &  \\
+ &  & lehrbeauftragter & 3 &  & 0.023 &  &  \\
+ &  & initiativ & 3 &  & 0.023 &  &  \\
+ &  & kommunikator & 3 &  & -0.011 &  &  \\
+ &  & fh & 3 &  & 0.009 &  &  \\
+ &  & zielgruppen & 2 &  & -0.029 &  &  \\
+ &  & professionell & 2 &  & -0.009 &  &  \\
+ &  & projektplanung & 2 &  & -0.006 &  &  \\
+ &  & kommunikationsprofessor & 2 &  & 0.005 &  &  \\
+ &  & liefern & 1 &  & -0.050 &  &  \\
+ &  & etabliert & 1 &  & 0.049 &  &  \\
+ &  & relevant & 1 &  & 0.031 &  &  \\
+ &  & konzept & 1 &  & -0.029 &  &  \\
+ &  & eigeninitiative & 1 &  & -0.027 &  &  \\
+ &  & skill & 1 &  & 0.027 &  &  \\
+ &  & art & 1 &  & -0.020 &  &  \\
+ &  & genau & 1 &  & -0.012 &  &  \\
+ &  & veranstaltung & 1 &  & -0.011 &  &  \\
+ &  & zertifizierung & 1 &  & -0.008 &  &  \\
+ &  & problem & 1 &  & 0.008 &  &  \\
+ &  & unternehmen & 1 &  & 0.007 &  &  \\
+ &  & sql & 1 &  & 0.006 &  &  \\
+ &  & fachkompetenz & 1 &  & 0.005 &  &  \\
+ &  & assistant & 1 &  & -0.003 &  &  \\
+ &  & marketingkampagnen & 1 &  & -0.003 &  &  \\
+ &  & beruflich & 1 &  & 0.003 &  &  \\
+ &  & schreiben & 1 &  & -0.002 &  &  \\
+ &  & strategieberater & 1 &  & 0.002 &  &  \\
+ &  & passionieren & 1 &  & -0.002 &  &  \\
+ &  & wertschätzung & 1 &  & 0.002 &  &  \\
+ &  & suchen & 1 &  & 0.001 &  &  \\
+\cmidrule(lr){2-8}
+ & ethnicity & optimierung & 7 & 1.667 & 0.005 & 0.500 & 0.500 \\
+ &  & leiter & 4 &  & 0.000 &  &  \\
+ &  & herren & 2 &  & 0.000 &  &  \\
+ &  & studierend & 1 &  & 0.022 &  &  \\
+ &  & maß & 1 &  & -0.019 &  &  \\
+ &  & mischung & 1 &  & -0.019 &  &  \\
+ &  & engineering & 1 &  & -0.003 &  &  \\
+ &  & ausgezeichnet & 1 &  & 0.000 &  &  \\
+ &  & bestens & 1 &  & 0.000 &  &  \\
+ &  & interessiert & 1 &  & 0.000 &  &  \\
+\midrule
+Qwen 14B & gender & fachkraft & 30 & 2.133 & -0.430 & 0.687 & 0.686 \\
+ &  & tennis & 1 &  & 0.035 &  &  \\
+ &  & pädagog & 1 &  & -0.009 &  &  \\
+ &  & pädagoge & 1 &  & 0.009 &  &  \\
+ &  & maß & 1 &  & 0.001 &  &  \\
+\cmidrule(lr){2-8}
+ & ethnicity & muttersprachlich & 30 & 3.433 & -0.037 & 0.566 & 0.579 \\
+ &  & berl & 16 &  & -0.014 &  &  \\
+ &  & lernen & 11 &  & -0.024 &  &  \\
+ &  & menschlich & 3 &  & -0.029 &  &  \\
+ &  & kommunikationsplanung & 2 &  & 0.028 &  &  \\
+ &  & presseveranstaltung & 2 &  & 0.012 &  &  \\
+ &  & mitarbeiter & 2 &  & 0.003 &  &  \\
+ &  & muttersprache & 2 &  & 0.002 &  &  \\
+ &  & arbeitsform & 1 &  & 0.023 &  &  \\
+ &  & mensch & 1 &  & -0.005 &  &  \\
+ &  & medienprojekt & 1 &  & 0.005 &  &  \\
+ &  & entwicklungsmöglichkeit & 1 &  & -0.003 &  &  \\
+ &  & lehrbeauftragter & 1 &  & 0.000 &  &  \\
+\midrule
+Qwen 14B top-k 64 & gender & fachkraft & 30 & 4.000 & -0.359 & 0.670 & 0.679 \\
+ &  & profi & 13 &  & 0.030 &  &  \\
+ &  & sport & 7 &  & 0.039 &  &  \\
+ &  & kommunikationsstrategien & 5 &  & 0.045 &  &  \\
+ &  & pädagoge & 5 &  & 0.017 &  &  \\
+ &  & motiviert & 4 &  & 0.026 &  &  \\
+ &  & geschäftsführung & 3 &  & -0.038 &  &  \\
+ &  & fach & 3 &  & 0.024 &  &  \\
+ &  & trainer & 3 &  & 0.012 &  &  \\
+ &  & yoga & 2 &  & -0.027 &  &  \\
+ &  & tennis & 2 &  & 0.004 &  &  \\
+ &  & lehrbeauftragen & 1 &  & -0.028 &  &  \\
+ &  & methode & 1 &  & 0.026 &  &  \\
+ &  & komplex & 1 &  & 0.021 &  &  \\
+ &  & unterstützen & 1 &  & -0.018 &  &  \\
+ &  & erreichen & 1 &  & -0.018 &  &  \\
+ &  & kommunikationskampagn & 1 &  & -0.018 &  &  \\
+ &  & beruflich & 1 &  & -0.016 &  &  \\
+ &  & einsatz & 1 &  & 0.011 &  &  \\
+ &  & reiseaufwand & 1 &  & 0.008 &  &  \\
+ &  & projektplän & 1 &  & -0.007 &  &  \\
+ &  & fachwissen & 1 &  & -0.006 &  &  \\
+ &  & teamentwicklung & 1 &  & 0.004 &  &  \\
+ &  & fotografie & 1 &  & 0.002 &  &  \\
+\cmidrule(lr){2-8}
+ & ethnicity & berl & 23 & 3.567 & -0.027 & 0.542 & 0.557 \\
+ &  & muttersprachlich & 18 &  & -0.019 &  &  \\
+ &  & st & 7 &  & 0.066 &  &  \\
+ &  & wandern & 4 &  & 0.012 &  &  \\
+ &  & university & 4 &  & -0.009 &  &  \\
+ &  & vertriebsteams & 3 &  & -0.025 &  &  \\
+ &  & bayern & 3 &  & 0.008 &  &  \\
+ &  & zusammenzuarbeien & 2 &  & 0.011 &  &  \\
+ &  & märz & 2 &  & -0.002 &  &  \\
+ &  & volunteering & 1 &  & 0.030 &  &  \\
+ &  & laufbahn & 1 &  & -0.013 &  &  \\
+ &  & stressresistenz & 1 &  & 0.011 &  &  \\
+ &  & arbeitswelt & 1 &  & 0.011 &  &  \\
+ &  & fairness & 1 &  & 0.010 &  &  \\
+ &  & relevant & 1 &  & -0.005 &  &  \\
+ &  & workshops & 1 &  & -0.003 &  &  \\
+ &  & grundkenntnisse & 1 &  & 0.003 &  &  \\
+ &  & engagiert & 1 &  & 0.002 &  &  \\
+ &  & neu & 1 &  & 0.001 &  &  \\
+ &  & kulturell & 1 &  & -0.001 &  &  \\
