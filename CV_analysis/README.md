@@ -1,12 +1,10 @@
-# CV Analysis: Résumé Screening Audit
+# Résumé Screening Audit (Stage 2)
 
-This folder contains the minimal code and derived data used to analyse generated CVs across protected groups (`gender`, `ethnicity`). The analysis focuses on structural résumé features, agentic/communal lexical counts, and TF-IDF lasso seed-sensitivity models.
-
-Raw generated CV JSON/text files are intentionally excluded from this submission. Derived result tables are included so the main findings can be inspected without rerunning the full pipeline.
+This folder contains code and derived data used to analyse generated CVs across protected groups (`gender`, `ethnicity`). The analysis focuses on structural résumé features, agentic/communal lexical counts (only part of appendix), and TF-IDF lasso seed-sensitivity models.
 
 ## Project Structure
 
-- `code/` — minimal analysis scripts
+- `code/` — 
   - `00_fix_cv_json.py` — normalizes generated CV JSON if raw run exports are available locally
   - `01_structural_features.py` — extracts section counts and word-count features from CV JSON
   - `02_lexical_counts.py` — counts German agentic and communal word stems
@@ -14,7 +12,7 @@ Raw generated CV JSON/text files are intentionally excluded from this submission
   - `04_plot_structural.R` — creates structural summary plots from derived features
   - `05_plot_lexical.R` — creates agentic/communal lexical summary plots
 
-- `data/` — derived data used for review and reproduction
+- `data/` — 
   - `structural_features.csv` — combined structural feature table
   - `lexical_counts.csv` — combined agentic/communal lexical count table
   - `structural/` — per-model structural feature tables
@@ -24,7 +22,7 @@ Raw generated CV JSON/text files are intentionally excluded from this submission
 
 - `lexica/` — German agentic/communal word lists and stems
 
-- `../figures/` — paper figures and tables copied from the original analysis outputs
+- `../figures/` — paper figures and tables 
 
 ## Reproducing the Analysis
 
